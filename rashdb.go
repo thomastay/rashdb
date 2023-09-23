@@ -1,8 +1,8 @@
 package rashdb
 
 import (
+	"bytes"
 	"encoding/binary"
-	"fmt"
 	"os"
 )
 
@@ -17,35 +17,48 @@ type DB struct {
 // The DB header is a 100 byte fixed size blob.
 // Multi-byte structures are stored in Big endian format
 type dbHeader struct {
-	magic   uint32
-	version uint32
+	Magic   uint32
+	Version uint32
 }
 
 var dbHeaderOrder = binary.BigEndian
+var dbHeaderSize = 100
 
 func (header *dbHeader) MarshalBinary() (data []byte, err error) {
-	b := fixedBytesBuffer{buf: make([]byte, 100)}
+	b := fixedBytesBuffer{buf: make([]byte, dbHeaderSize)}
 
-	if header.magic == 0 {
+	if header.Magic == 0 {
 		// use default
 		binary.Write(&b, dbHeaderOrder, magicHeader)
 	} else {
 		binary.Write(&b, dbHeaderOrder, magicHeader)
 	}
-	binary.Write(&b, dbHeaderOrder, header.version)
+	binary.Write(&b, dbHeaderOrder, header.Version)
 
 	return b.Bytes(), nil
+}
+func (header *dbHeader) UnmarshalBinary(data []byte) error {
+	b := bytes.NewBuffer(data)
+	err := binary.Read(b, dbHeaderOrder, header)
+	if err != nil {
+		return err
+	}
+	return nil
 }
 
 func Open(filename string) (*DB, error) {
 	header := dbHeader{
-		version: 3,
+		Version: 3,
 	}
 	b, err := header.MarshalBinary()
 	if err != nil {
 		return nil, err
 	}
-	fmt.Println(b)
+	var readHeader dbHeader
+	err = readHeader.UnmarshalBinary(b)
+	if err != nil {
+		return nil, err
+	}
 
 	return nil, nil
 }
