@@ -1,8 +1,6 @@
 package main
 
 import (
-	"fmt"
-
 	rashdb "github.com/thomastay/rash-db"
 )
 
@@ -18,6 +16,15 @@ func run() error {
 	if err != nil {
 		return err
 	}
-	fmt.Print(db)
+	db.CreateTable("Bars", Bar{})
 	return nil
+}
+
+type Bar struct {
+	Symbol    string
+	Timestamp uint64
+	Open      float64
+	High      float64
+	Low       float64
+	Close     float64
 }

@@ -1,16 +1,18 @@
 package rashdb
 
 import (
+	"fmt"
 	"os"
 	"reflect"
-	"sync"
+
+	"github.com/vmihailenco/msgpack/v5"
 )
 
 type DB struct {
 	path   string
 	file   *os.File
 	header dbHeader
-	lock   sync.Mutex
+	// lock   sync.Mutex
 }
 
 func Open(filename string) (*DB, error) {
@@ -40,14 +42,22 @@ func (db *DB) CreateTable(
 	tableName string,
 	tableType interface{},
 ) error {
-	db.lock.Lock()
-	defer db.lock.Unlock()
+	tbl, err := db.createTable(tableName, tableType)
+	if err != nil {
+		return err
+	}
+	tblBytes, err := msgpack.Marshal(tbl)
+	if err != nil {
+		return err
+	}
+	fmt.Println(tblBytes)
+	// TODO write to file
 
 	return nil
 }
 
 // Uses reflection to figure out what fields are available on a struct
-func (db *DB) createTable(tableName string, tableType interface{}) (dbTable, error) {
+func (db *DB) createTable(tableName string, tableType interface{}) (*dbTable, error) {
 	table := dbTable{}
 	table.Name = tableName
 	cols := make([]dbTableColumn, 0)
@@ -78,10 +88,10 @@ func (db *DB) createTable(tableName string, tableType interface{}) (dbTable, err
 		case reflect.String:
 			col.Value = dbValueStr
 		default:
-			return dbTable{}, ErrInvalidTableValue
+			return nil, ErrInvalidTableValue
 		}
 	}
-	return table, nil
+	return &table, nil
 }
 
 // Represents a table's columns, so we know what data goes into them.
