@@ -1,4 +1,4 @@
-package rashdb
+package disk
 
 import "errors"
 

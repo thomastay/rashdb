@@ -5,15 +5,16 @@ import (
 	"os"
 	"reflect"
 
+	"github.com/thomastay/rash-db/pkg/disk"
 	"github.com/vmihailenco/msgpack/v5"
 )
 
 type DB struct {
 	path   string
 	file   *os.File
-	header dbHeader
+	header disk.Header
 	// lock   sync.Mutex
-	tables []*dbTable
+	tables []*disk.Table
 }
 
 func Open(filename string) (*DB, error) {
@@ -34,12 +35,12 @@ func Open(filename string) (*DB, error) {
 	}
 	// Else, DB exists. Read from it.
 
-	headerBytes := make([]byte, dbHeaderSize)
+	headerBytes := make([]byte, disk.DBHeaderSize)
 	count, err := db.file.Read(headerBytes)
 	if err != nil {
 		return nil, err
 	}
-	if count != 100 {
+	if count != disk.DBHeaderSize {
 		return nil, ErrInvalid
 	}
 	err = db.header.UnmarshalBinary(headerBytes)
@@ -87,30 +88,30 @@ func (db *DB) SyncAll() error {
 }
 
 // Uses reflection to figure out what fields are available on a struct
-func (db *DB) createTable(tableName string, tableType interface{}) (*dbTable, error) {
-	table := dbTable{}
+func (db *DB) createTable(tableName string, tableType interface{}) (*disk.Table, error) {
+	table := disk.Table{}
 	table.Name = tableName
-	cols := make([]dbTableColumn, 0)
+	cols := make([]disk.TableColumn, 0)
 	defer func() { table.Columns = cols }()
 
 	typ := reflect.TypeOf(tableType)
 	for _, field := range reflect.VisibleFields(typ) {
-		col := dbTableColumn{Key: field.Name}
+		col := disk.TableColumn{Key: field.Name}
 
 		switch field.Type.Kind() {
 		case reflect.Bool,
 			reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64,
 			reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
-			col.Value = dbInt
+			col.Value = disk.DBInt
 		case reflect.Float32, reflect.Float64:
-			col.Value = dbReal
+			col.Value = disk.DBReal
 		case reflect.String:
-			col.Value = dbStr
+			col.Value = disk.DBStr
 		case reflect.Slice:
 			elem := field.Type.Elem()
 			switch elem.Kind() {
 			case reflect.Uint8:
-				col.Value = dbBlob
+				col.Value = disk.DBBlob
 			default:
 				return nil, ErrInvalidTableValue
 			}
@@ -122,28 +123,3 @@ func (db *DB) createTable(tableName string, tableType interface{}) (*dbTable, er
 	}
 	return &table, nil
 }
-
-// Represents a table's columns, so we know what data goes into them.
-type dbTable struct {
-	Name    string
-	Columns []dbTableColumn
-}
-
-type dbTableColumn struct {
-	Key   string
-	Value dbValueType
-}
-
-//go:generate stringer -type=dbValueType
-type dbValueType uint8
-
-// Based on https://www.sqlite.org/datatype3.html
-const (
-	// Strings are likely to be the most common type, so they get 0
-	dbStr dbValueType = iota
-	dbInt
-	dbReal
-	dbNull
-	dbText
-	dbBlob
-)

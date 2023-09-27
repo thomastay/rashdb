@@ -1,16 +1,20 @@
-package rashdb
+package rashdb_test
 
-import "testing"
+import (
+	"testing"
+
+	"github.com/thomastay/rash-db/pkg/disk"
+)
 
 func TestReadWriteHeaders(t *testing.T) {
-	header := dbHeader{
+	header := disk.Header{
 		Version: 3,
 	}
 	b, err := header.MarshalBinary()
 	if err != nil {
 		t.Fatal(err)
 	}
-	var readHeader dbHeader
+	var readHeader disk.Header
 	err = readHeader.UnmarshalBinary(b)
 	if err != nil {
 		t.Fatal(err)
@@ -18,7 +22,7 @@ func TestReadWriteHeaders(t *testing.T) {
 	if readHeader.Version != header.Version {
 		t.Fatalf("Headers version not equal, expected %d, got %d", header.Version, readHeader.Version)
 	}
-	if readHeader.Magic != magicHeader {
+	if readHeader.Magic != disk.MagicHeader {
 		t.Fatalf("Magic header not set, got %d", readHeader.Magic)
 	}
 }
