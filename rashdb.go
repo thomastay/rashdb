@@ -2,7 +2,6 @@ package rashdb
 
 import (
 	"bytes"
-	"fmt"
 	"os"
 	"reflect"
 
@@ -14,6 +13,7 @@ type DB struct {
 	file   *os.File
 	header dbHeader
 	// lock   sync.Mutex
+	tables []*dbTable
 }
 
 func Open(filename string) (*DB, error) {
@@ -34,7 +34,7 @@ func Open(filename string) (*DB, error) {
 	}
 	// Else, DB exists. Read from it.
 
-	headerBytes := make([]byte, 100)
+	headerBytes := make([]byte, dbHeaderSize)
 	count, err := db.file.Read(headerBytes)
 	if err != nil {
 		return nil, err
@@ -58,16 +58,31 @@ func (db *DB) CreateTable(
 	if err != nil {
 		return err
 	}
+	db.tables = append(db.tables, tbl)
+
+	return nil
+}
+
+// Temp function until we do something better
+func (db *DB) SyncAll() error {
 	var buf bytes.Buffer
+	headerBytes, err := db.header.MarshalBinary()
+	if err != nil {
+		return err
+	}
+	_, err = buf.Write(headerBytes)
+	if err != nil {
+		return err
+	}
+	// TODO should probably write page by page
+	tbl := db.tables[0]
 	enc := msgpack.NewEncoder(&buf)
 	enc.UseArrayEncodedStructs(true)
 	err = enc.Encode(tbl)
 	if err != nil {
 		return err
 	}
-	fmt.Printf("%x\n", buf.Bytes())
-	// TODO write to file
-
+	db.file.Write(buf.Bytes())
 	return nil
 }
 

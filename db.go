@@ -14,7 +14,7 @@ type dbHeader struct {
 }
 
 const magicHeader uint32 = 0xDEADBEEF
-const dbHeaderSize = 100
+const dbHeaderSize = 128
 
 var dbHeaderOrder = binary.BigEndian
 

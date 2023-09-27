@@ -17,6 +17,7 @@ func run() error {
 		return err
 	}
 	db.CreateTable("Bars", Bar{})
+	db.SyncAll()
 	return nil
 }
 
