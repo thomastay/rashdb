@@ -1,6 +1,7 @@
 package rashdb
 
 import (
+	"bytes"
 	"fmt"
 	"os"
 	"reflect"
@@ -22,6 +23,17 @@ func Open(filename string) (*DB, error) {
 	if err != nil {
 		return nil, err
 	}
+	// Check if the opened file exists
+	info, err := db.file.Stat()
+	if err != nil {
+		return nil, err
+	}
+	if info.Size() == 0 {
+		// initialize DB
+		return &db, nil
+	}
+	// Else, DB exists. Read from it.
+
 	headerBytes := make([]byte, 100)
 	count, err := db.file.Read(headerBytes)
 	if err != nil {
@@ -46,11 +58,14 @@ func (db *DB) CreateTable(
 	if err != nil {
 		return err
 	}
-	tblBytes, err := msgpack.Marshal(tbl)
+	var buf bytes.Buffer
+	enc := msgpack.NewEncoder(&buf)
+	enc.UseArrayEncodedStructs(true)
+	err = enc.Encode(tbl)
 	if err != nil {
 		return err
 	}
-	fmt.Println(tblBytes)
+	fmt.Printf("%x\n", buf.Bytes())
 	// TODO write to file
 
 	return nil
@@ -61,35 +76,34 @@ func (db *DB) createTable(tableName string, tableType interface{}) (*dbTable, er
 	table := dbTable{}
 	table.Name = tableName
 	cols := make([]dbTableColumn, 0)
-	table.Columns = cols
+	defer func() { table.Columns = cols }()
 
 	typ := reflect.TypeOf(tableType)
 	for _, field := range reflect.VisibleFields(typ) {
 		col := dbTableColumn{Key: field.Name}
-		cols = append(cols, col)
 
 		switch field.Type.Kind() {
-		case reflect.Bool, reflect.Uint8:
-			col.Value = dbValueU8
-		case reflect.Uint, reflect.Uint16, reflect.Uint32:
-			col.Value = dbValueU32
-		case reflect.Uint64:
-			col.Value = dbValueU64
-		case reflect.Int8:
-			col.Value = dbValueI8
-		case reflect.Int, reflect.Int16, reflect.Int32:
-			col.Value = dbValueI32
-		case reflect.Int64:
-			col.Value = dbValueI64
-		case reflect.Float32:
-			col.Value = dbValueF32
-		case reflect.Float64:
-			col.Value = dbValueF64
+		case reflect.Bool,
+			reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64,
+			reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
+			col.Value = dbInt
+		case reflect.Float32, reflect.Float64:
+			col.Value = dbReal
 		case reflect.String:
-			col.Value = dbValueStr
+			col.Value = dbStr
+		case reflect.Slice:
+			elem := field.Type.Elem()
+			switch elem.Kind() {
+			case reflect.Uint8:
+				col.Value = dbBlob
+			default:
+				return nil, ErrInvalidTableValue
+			}
 		default:
 			return nil, ErrInvalidTableValue
 		}
+
+		cols = append(cols, col)
 	}
 	return &table, nil
 }
@@ -106,17 +120,15 @@ type dbTableColumn struct {
 }
 
 //go:generate stringer -type=dbValueType
-type dbValueType uint32
+type dbValueType uint8
 
+// Based on https://www.sqlite.org/datatype3.html
 const (
 	// Strings are likely to be the most common type, so they get 0
-	dbValueStr dbValueType = iota
-	dbValueF32
-	dbValueF64
-	dbValueI8
-	dbValueI32
-	dbValueI64
-	dbValueU8
-	dbValueU32
-	dbValueU64
+	dbStr dbValueType = iota
+	dbInt
+	dbReal
+	dbNull
+	dbText
+	dbBlob
 )

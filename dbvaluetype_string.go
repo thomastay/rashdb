@@ -8,20 +8,17 @@ func _() {
 	// An "invalid array index" compiler error signifies that the constant values have changed.
 	// Re-run the stringer command to generate them again.
 	var x [1]struct{}
-	_ = x[dbValueStr-0]
-	_ = x[dbValueF32-1]
-	_ = x[dbValueF64-2]
-	_ = x[dbValueI8-3]
-	_ = x[dbValueI32-4]
-	_ = x[dbValueI64-5]
-	_ = x[dbValueU8-6]
-	_ = x[dbValueU32-7]
-	_ = x[dbValueU64-8]
+	_ = x[dbStr-0]
+	_ = x[dbInt-1]
+	_ = x[dbReal-2]
+	_ = x[dbNull-3]
+	_ = x[dbText-4]
+	_ = x[dbBlob-5]
 }
 
-const _dbValueType_name = "dbValueStrdbValueF32dbValueF64dbValueI8dbValueI32dbValueI64dbValueU8dbValueU32dbValueU64"
+const _dbValueType_name = "dbStrdbIntdbRealdbNulldbTextdbBlob"
 
-var _dbValueType_index = [...]uint8{0, 10, 20, 30, 39, 49, 59, 68, 78, 88}
+var _dbValueType_index = [...]uint8{0, 5, 10, 16, 22, 28, 34}
 
 func (i dbValueType) String() string {
 	if i >= dbValueType(len(_dbValueType_index)-1) {
