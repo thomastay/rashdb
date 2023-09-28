@@ -14,7 +14,7 @@ type DB struct {
 	file   *os.File
 	header disk.Header
 	// lock   sync.Mutex
-	tables []*disk.Table
+	table *tableNode
 }
 
 func Open(filename string) (*DB, error) {
@@ -59,7 +59,8 @@ func (db *DB) CreateTable(
 	if err != nil {
 		return err
 	}
-	db.tables = append(db.tables, tbl)
+	// TODO more tables
+	db.table = tbl
 
 	return nil
 }
@@ -76,19 +77,17 @@ func (db *DB) SyncAll() error {
 		return err
 	}
 	// TODO should probably write page by page
-	tbl := db.tables[0]
-	enc := msgpack.NewEncoder(&buf)
-	enc.UseArrayEncodedStructs(true)
-	err = enc.Encode(tbl)
+	tblBytes, err := db.table.MarshalBinary()
 	if err != nil {
 		return err
 	}
+	buf.Write(tblBytes)
 	db.file.Write(buf.Bytes())
 	return nil
 }
 
 // Uses reflection to figure out what fields are available on a struct
-func (db *DB) createTable(tableName string, tableType interface{}) (*disk.Table, error) {
+func (db *DB) createTable(tableName string, tableType interface{}) (*tableNode, error) {
 	table := disk.Table{}
 	table.Name = tableName
 	cols := make([]disk.TableColumn, 0)
@@ -121,5 +120,37 @@ func (db *DB) createTable(tableName string, tableType interface{}) (*disk.Table,
 
 		cols = append(cols, col)
 	}
-	return &table, nil
+	table.Columns = cols
+	return &tableNode{
+		headers: table,
+	}, nil
 }
+
+// Represents the data stored in a table.
+// This is an in-memory representation
+type tableNode struct {
+	headers disk.Table
+	vals []interface{}
+}
+
+func (n *tableNode) MarshalBinary() ([]byte, error) {
+	var buf bytes.Buffer
+
+	tblHeader := &n.headers
+	enc := msgpack.NewEncoder(&buf)
+	enc.UseArrayEncodedStructs(true)
+	err := enc.Encode(tblHeader)
+	if err != nil {
+		return nil, err
+	}
+
+	// TODO write vals according to primary key
+	for _, val := range n.vals {
+		err = enc.Encode(val)
+		if err != nil {
+			return nil, err
+		}
+	}
+	return buf.Bytes(), nil
+}
+
