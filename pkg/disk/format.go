@@ -17,6 +17,7 @@ type Header struct {
 }
 
 const DBHeaderSize = 128
+
 var MagicHeader = [16]byte{
 	'r', 'a', 's', 'h', 'd', 'b', ' ',
 	'f', 'o', 'r', 'm', 'a', 't', ' ',
@@ -51,9 +52,13 @@ func (header *Header) UnmarshalBinary(data []byte) error {
 // Represents a table's columns, so we know what data goes into them.
 // These are encoded into arrays and serialized as messagepack objects for simplicity
 type Table struct {
-	Name    string
-	Columns []TableColumn
+	Name       string
+	PrimaryKey PrimaryKeyType
+	Columns    []TableColumn
 }
+
+// Allow only strings for now
+type PrimaryKeyType string
 
 type TableColumn struct {
 	Key   string

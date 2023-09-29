@@ -54,13 +54,62 @@ func Open(filename string) (*DB, error) {
 func (db *DB) CreateTable(
 	tableName string,
 	tableType interface{},
+	primaryKey string,
 ) error {
-	tbl, err := db.createTable(tableName, tableType)
+	tbl, err := db.createTable(tableName, tableType, primaryKey)
 	if err != nil {
 		return err
 	}
 	// TODO more tables
 	db.table = tbl
+
+	return nil
+}
+
+func (db *DB) Insert(
+	tableName string,
+	val interface{},
+) error {
+	if db.table.headers.Name != tableName {
+		return ErrUnknownTableName
+	}
+	table := db.table
+
+	// Iterate over the fields of the val struct, verifying that
+	// 1. the primary key exists
+	// 2. the column names are a subset of the known column names. The object shouldn't have any extra exported fields
+	// It's a design choice here, but I choose to return an error if val contains extra fields, this helps identify bugs quickly
+	// You could easily choose to silently ignore extra fields.
+
+	v := reflect.ValueOf(val)
+	typ := reflect.TypeOf(val)
+	data := tableNodeData{
+		cols: make(map[string]interface{}),
+	}
+	var foundPrimary bool
+
+	for i := 0; i < v.NumField(); i++ {
+		field := v.Field(i)
+		fieldName := typ.Field(i).Name
+		if fieldName == string(table.headers.PrimaryKey) {
+			data.primaryVal = field.Interface()
+			foundPrimary = true
+			continue
+		}
+
+		if _, ok := table.columns[fieldName]; ok {
+			fieldVal := field.Interface()
+			// TODO check value
+			data.cols[fieldName] = fieldVal
+		} else {
+			return ErrInsertInvalidKey(fieldName)
+		}
+	}
+	if !foundPrimary {
+		return ErrInsertNoPrimaryKey
+	}
+	// append
+	table.data = append(table.data, data)
 
 	return nil
 }
@@ -87,10 +136,14 @@ func (db *DB) SyncAll() error {
 }
 
 // Uses reflection to figure out what fields are available on a struct
-func (db *DB) createTable(tableName string, tableType interface{}) (*tableNode, error) {
-	table := disk.Table{}
-	table.Name = tableName
+func (db *DB) createTable(tableName string, tableType interface{}, primaryKey string) (*tableNode, error) {
+	table := disk.Table{
+		Name:       tableName,
+		PrimaryKey: disk.PrimaryKeyType(primaryKey),
+	}
+
 	cols := make([]disk.TableColumn, 0)
+	colsMap := make(map[string]disk.DataType)
 	defer func() { table.Columns = cols }()
 
 	typ := reflect.TypeOf(tableType)
@@ -119,18 +172,35 @@ func (db *DB) createTable(tableName string, tableType interface{}) (*tableNode, 
 		}
 
 		cols = append(cols, col)
+		colsMap[col.Key] = col.Value
 	}
 	table.Columns = cols
 	return &tableNode{
 		headers: table,
+		columns: colsMap,
 	}, nil
 }
 
-// Represents the data stored in a table.
-// This is an in-memory representation
+// Represents the table and its data
+// This is an in-memory representation. On disk, the headers and data
+// are stored in different locations
 type tableNode struct {
+	// --- Persisted to disk ---
+
 	headers disk.Table
-	vals []interface{}
+	// data not sorted, sort it lazily? Or maybe not?
+	data []tableNodeData
+
+	// --- Not persisted to disk ---
+	// this is the columns from the headers, but as a map.
+	columns map[string]disk.DataType
+}
+
+type tableNodeData struct {
+	primaryVal interface{}
+	// This map is a map from the key name to the value
+	// It doesn't contain the primary key
+	cols map[string]interface{}
 }
 
 func (n *tableNode) MarshalBinary() ([]byte, error) {
@@ -143,9 +213,14 @@ func (n *tableNode) MarshalBinary() ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-
-	// TODO write vals according to primary key
-	for _, val := range n.vals {
+	// TODO sort data
+	// TODO assume more than one data elt
+	data := n.data[0]
+	err = enc.Encode(data.primaryVal)
+	if err != nil {
+		return nil, err
+	}
+	for _, val := range data.cols {
 		err = enc.Encode(val)
 		if err != nil {
 			return nil, err
@@ -153,4 +228,3 @@ func (n *tableNode) MarshalBinary() ([]byte, error) {
 	}
 	return buf.Bytes(), nil
 }
-

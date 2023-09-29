@@ -16,8 +16,26 @@ func run() error {
 	if err != nil {
 		return err
 	}
-	db.CreateTable("Bars", Bar{})
-	db.SyncAll()
+	// TODO allow multiple keys as primary. We need symbol and timestamp
+	err = db.CreateTable("Bars", Bar{}, "Symbol")
+	if err != nil {
+		return err
+	}
+	err = db.Insert("Bars", Bar{
+		Symbol:    "SPY",
+		Timestamp: 1695885687,
+		Open:      400.0,
+		High:      405.0,
+		Low:       395.0,
+		Close:     401.0,
+	})
+	if err != nil {
+		return err
+	}
+	err = db.SyncAll()
+	if err != nil {
+		return err
+	}
 	return nil
 }
 
