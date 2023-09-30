@@ -1,4 +1,4 @@
-package disk
+package common
 
 import (
 	"bytes"

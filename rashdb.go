@@ -5,6 +5,7 @@ import (
 	"os"
 	"reflect"
 
+	"github.com/thomastay/rash-db/pkg/common"
 	"github.com/thomastay/rash-db/pkg/disk"
 	"github.com/vmihailenco/msgpack/v5"
 )
@@ -35,7 +36,7 @@ func Open(filename string) (*DB, error) {
 	}
 	// Else, DB exists. Read from it.
 
-	headerBytes, err := disk.ReadExactly(db.file, disk.DBHeaderSize)
+	headerBytes, err := common.ReadExactly(db.file, disk.DBHeaderSize)
 	if err != nil {
 		return nil, err
 	}
@@ -225,8 +226,8 @@ func (n *tableNode) MarshalBinary() ([]byte, error) {
 	}
 	// Write key length, and vals length to disk, then key and val
 	// TODO probably wrap this somehow?
-	disk.WriteVarInt(&buf, uint64(len(keyBytes)))
-	disk.WriteVarInt(&buf, uint64(len(valBytes)))
+	common.WriteUVarIntToBuffer(&buf, uint64(len(keyBytes)))
+	common.WriteUVarIntToBuffer(&buf, uint64(len(valBytes)))
 	buf.Write(keyBytes)
 	buf.Write(valBytes)
 

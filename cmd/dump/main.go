@@ -8,6 +8,7 @@ import (
 	"io"
 	"os"
 
+	"github.com/thomastay/rash-db/pkg/common"
 	"github.com/thomastay/rash-db/pkg/disk"
 	"github.com/vmihailenco/msgpack/v5"
 )
@@ -88,11 +89,11 @@ func parseTableData(buf *bytes.Buffer) (*disk.KeyValue, error) {
 		return nil, err
 	}
 	kv := disk.KeyValue{}
-	kv.Key, err = disk.ReadExactly(buf, int(keyLen))
+	kv.Key, err = common.ReadExactly(buf, int(keyLen))
 	if err != nil {
 		return nil, err
 	}
-	kv.Val, err = disk.ReadExactly(buf, int(valLen))
+	kv.Val, err = common.ReadExactly(buf, int(valLen))
 	if err != nil {
 		return nil, err
 	}
