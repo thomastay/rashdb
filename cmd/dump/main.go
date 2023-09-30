@@ -49,7 +49,7 @@ func run() error {
 		return err
 	}
 	// TODO unmarshal these from messagepack? That should be a DB specific function
-	fmt.Printf("Key: %s\nVal:%s\n", kv.Key, kv.Val)
+	fmt.Printf("Key: %s (%d)\nVal:%s (%d)\n", kv.Key, len(kv.Key), kv.Val, len(kv.Val))
 	return nil
 }
 
