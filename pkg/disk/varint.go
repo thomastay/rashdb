@@ -13,6 +13,7 @@ func WriteUVarIntToBuffer(buffer *bytes.Buffer, x uint64) {
 	buffer.Write(buf)
 }
 
+// Read exactly n bytes from the reader, or it returns an error
 func ReadExactly(r io.Reader, n int) ([]byte, error) {
 	buf := make([]byte, n)
 	read, err := r.Read(buf)

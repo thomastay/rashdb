@@ -35,13 +35,9 @@ func Open(filename string) (*DB, error) {
 	}
 	// Else, DB exists. Read from it.
 
-	headerBytes := make([]byte, disk.DBHeaderSize)
-	count, err := db.file.Read(headerBytes)
+	headerBytes, err := disk.ReadExactly(db.file, disk.DBHeaderSize)
 	if err != nil {
 		return nil, err
-	}
-	if count != disk.DBHeaderSize {
-		return nil, ErrInvalid
 	}
 	err = db.header.UnmarshalBinary(headerBytes)
 	if err != nil {
@@ -229,8 +225,8 @@ func (n *tableNode) MarshalBinary() ([]byte, error) {
 	}
 	// Write key length, and vals length to disk, then key and val
 	// TODO probably wrap this somehow?
-	disk.WriteUVarIntToBuffer(&buf, uint64(len(keyBytes)))
-	disk.WriteUVarIntToBuffer(&buf, uint64(len(valBytes)))
+	disk.WriteVarInt(&buf, uint64(len(keyBytes)))
+	disk.WriteVarInt(&buf, uint64(len(valBytes)))
 	buf.Write(keyBytes)
 	buf.Write(valBytes)
 
