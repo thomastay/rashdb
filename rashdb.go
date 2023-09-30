@@ -79,7 +79,8 @@ func (db *DB) Insert(
 	// 1. the primary key exists
 	// 2. the column names are a subset of the known column names. The object shouldn't have any extra exported fields
 	// It's a design choice here, but I choose to return an error if val contains extra fields, this helps identify bugs quickly
-	// You could easily choose to silently ignore extra fields.
+	// You could easily choose to silently ignore extra fields. Or even encode them as extra "slop" data. Honestly, that last one might be better,
+	// since it allows for easy extensibility. I've definitely worked on a project where fields were just slapped onto the User struct without much thought
 
 	v := reflect.ValueOf(val)
 	typ := reflect.TypeOf(val)
@@ -216,12 +217,31 @@ func (n *tableNode) MarshalBinary() ([]byte, error) {
 	// TODO sort data
 	// TODO assume more than one data elt
 	data := n.data[0]
-	err = enc.Encode(data.primaryVal)
+
+	// Marshal primary key and vals
+	keyBytes, err := msgpack.Marshal(data.primaryVal)
 	if err != nil {
 		return nil, err
 	}
-	for _, val := range data.cols {
-		err = enc.Encode(val)
+	valBytes, err := colsMapToBytes(data.cols)
+	if err != nil {
+		return nil, err
+	}
+	// Write key length, and vals length to disk, then key and val
+	// TODO probably wrap this somehow?
+	disk.WriteUVarIntToBuffer(&buf, uint64(len(keyBytes)))
+	disk.WriteUVarIntToBuffer(&buf, uint64(len(valBytes)))
+	buf.Write(keyBytes)
+	buf.Write(valBytes)
+
+	return buf.Bytes(), nil
+}
+
+func colsMapToBytes(cols map[string]interface{}) ([]byte, error) {
+	var buf bytes.Buffer
+	enc := msgpack.NewEncoder(&buf)
+	for _, val := range cols {
+		err := enc.Encode(val)
 		if err != nil {
 			return nil, err
 		}

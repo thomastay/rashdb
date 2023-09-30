@@ -65,6 +65,17 @@ type TableColumn struct {
 	Value DataType
 }
 
+type KeyValueLen struct {
+	KeyLen uint32
+	ValLen uint32
+}
+
+type KeyValue struct {
+	// Keys and values are stored as opaque structs and decoded as needed
+	Key []byte
+	Val []byte
+}
+
 //go:generate stringer -type=DataType
 type DataType uint8
 

@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"encoding/binary"
 	"errors"
 	"fmt"
 	"io"
@@ -29,12 +30,26 @@ func run() error {
 	if err != nil {
 		return err
 	}
-	fmt.Printf("%+v\n", header)
+	fmt.Println("========= Header ============")
+	fmt.Printf("Magic: %s\n", string(header.Magic[:]))
+	fmt.Printf("Version: %d\n", header.Version)
+	fmt.Println("========= Table ============")
 	table, err := parseTable(buf)
-	fmt.Printf("%+v\n", table)
 	if err != nil {
 		return err
 	}
+	fmt.Printf("Table %s\n", table.Name)
+	fmt.Printf("  Primary key %s\n", table.PrimaryKey)
+	for i, col := range table.Columns {
+		fmt.Printf("  Col %d: %s - %s\n", i, col.Key, col.Value.String())
+	}
+
+	kv, err := parseTableData(buf)
+	if err != nil {
+		return err
+	}
+	// TODO unmarshal these from messagepack? That should be a DB specific function
+	fmt.Printf("Key: %s\nVal:%s\n", kv.Key, kv.Val)
 	return nil
 }
 
@@ -60,4 +75,26 @@ func parseTable(buf io.Reader) (disk.Table, error) {
 		return disk.Table{}, err
 	}
 	return tbl, nil
+}
+
+func parseTableData(buf *bytes.Buffer) (*disk.KeyValue, error) {
+	// TODO more than one elt please
+	keyLen, err := binary.ReadUvarint(buf)
+	if err != nil {
+		return nil, err
+	}
+	valLen, err := binary.ReadUvarint(buf)
+	if err != nil {
+		return nil, err
+	}
+	kv := disk.KeyValue{}
+	kv.Key, err = disk.ReadExactly(buf, int(keyLen))
+	if err != nil {
+		return nil, err
+	}
+	kv.Val, err = disk.ReadExactly(buf, int(valLen))
+	if err != nil {
+		return nil, err
+	}
+	return &kv, nil
 }
