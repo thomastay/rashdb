@@ -82,7 +82,7 @@ func TestFourByteVarInt(t *testing.T) {
 			t.Errorf("%d: Length of b should be 4, got %d", i, len(b))
 		}
 		if b[0] != 250 {
-			t.Errorf("%d: expected 249", i)
+			t.Errorf("%d: expected 250", i)
 		}
 		buf := bytes.NewBuffer(b)
 		decoded, err := varint.Decode64(buf)
