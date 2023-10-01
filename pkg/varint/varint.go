@@ -80,9 +80,9 @@ func Encode64(x uint64) []byte {
 // The error is EOF only if no bytes were read.
 // If an EOF happens after reading some but not all the bytes,
 // ReadUvarint returns io.ErrUnexpectedEOF.
-func Decode(r io.ByteReader) (uint64, error) {
+func Decode(r io.Reader) (uint64, error) {
 	var x uint64
-	first, err := r.ReadByte()
+	first, err := readByte(r)
 	if err != nil {
 		return 0, err
 	}
@@ -93,12 +93,9 @@ func Decode(r io.ByteReader) (uint64, error) {
 	}
 	if first < multiByteDecodeRangeLowEnd {
 		// Case 2: Two bytes
-		second, err := r.ReadByte()
+		second, err := readByte(r)
 		if err != nil {
-			if err == io.EOF {
-				return x, io.ErrUnexpectedEOF
-			}
-			return x, err
+			return 0, err
 		}
 		q := uint64(first - twoByteDecodeRangeLowEnd)
 		x = twoByteDecodeRangeLowEnd + 256*q + uint64(second)
@@ -106,19 +103,34 @@ func Decode(r io.ByteReader) (uint64, error) {
 	}
 	// Else, it is encoded as a big-endian integer in the rest of the bytes
 	numBytesToRead := first - 247 // 249:2, 250:3, ... 255:8
-	for i := 0; i < int(numBytesToRead); i++ {
-		b, err := r.ReadByte()
-		if err != nil {
-			if err == io.EOF {
-				return x, io.ErrUnexpectedEOF
-			}
-			return x, err
-		}
+	var buf [8]byte
+	n, err := r.Read(buf[:])
+	if n != int(numBytesToRead) {
+		return 0, io.ErrUnexpectedEOF
+	}
+	if err != nil {
+		return 0, err
+	}
 
+	// Decode the n bytes as a big endian integer
+	for i := 0; i < n; i++ {
 		x <<= 8
-		x += uint64(b)
+		x += uint64(buf[i])
 	}
 	return x, nil
+}
+
+// Read exactly one byte from r
+func readByte(r io.Reader) (byte, error) {
+	var firstByte [1]byte
+	n, err := r.Read(firstByte[:])
+	if n != 1 {
+		return 0, io.ErrUnexpectedEOF
+	}
+	if err != nil {
+		return 0, err
+	}
+	return firstByte[0], nil
 }
 
 const (
