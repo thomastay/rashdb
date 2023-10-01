@@ -31,9 +31,11 @@ func Encode(x int) ([]byte, error) {
 
 func Encode64(x uint64) []byte {
 	if x < twoByteDecodeRangeLowEnd {
+		// Case 1: one byte
 		return []byte{byte(x)}
 	}
 	if x < twoBytesThreshold {
+		// Case 2: two bytes
 		y := x - twoByteDecodeRangeLowEnd // We only need to encode the part that is bigger than the one byte threshold
 		q, r := (y / 256), (y % 256)
 		if q > twoByteDecodeRangeLen {
@@ -46,7 +48,8 @@ func Encode64(x uint64) []byte {
 		return b
 	}
 
-	// find threshold
+	// Else, it is encoded as a big-endian integer in the rest of the bytes
+	// Find the number of bytes we should write based on a lookup table of max ints
 	numTotalBytes := maxVarIntLen64
 	for i, threshold := range thresholds {
 		if x < threshold {
@@ -84,10 +87,12 @@ func Decode(r io.ByteReader) (uint64, error) {
 		return 0, err
 	}
 	if first < twoByteDecodeRangeLowEnd {
+		// Case 1: Single byte
 		x = uint64(first)
 		return x, nil
 	}
 	if first < multiByteDecodeRangeLowEnd {
+		// Case 2: Two bytes
 		second, err := r.ReadByte()
 		if err != nil {
 			if err == io.EOF {
