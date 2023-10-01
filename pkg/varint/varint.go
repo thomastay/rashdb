@@ -30,10 +30,10 @@ func Encode(x int) ([]byte, error) {
 }
 
 func Encode64(x uint64) []byte {
-	if x <= oneByteThreshold {
+	if x < twoByteDecodeRangeLowEnd {
 		return []byte{byte(x)}
 	}
-	if x <= twoBytesThreshold {
+	if x < twoBytesThreshold {
 		y := x - twoByteDecodeRangeLowEnd // We only need to encode the part that is bigger than the one byte threshold
 		q, r := (y / 256), (y % 256)
 		if q > twoByteDecodeRangeLen {
@@ -49,7 +49,7 @@ func Encode64(x uint64) []byte {
 	// find threshold
 	numTotalBytes := maxVarIntLen64
 	for i, threshold := range thresholds {
-		if x <= threshold {
+		if x < threshold {
 			numTotalBytes = i + 1
 			break
 		}
@@ -82,11 +82,11 @@ func Decode64(r io.ByteReader) (uint64, error) {
 	if err != nil {
 		return 0, err
 	}
-	if first <= oneByteThreshold {
+	if first < twoByteDecodeRangeLowEnd {
 		x = uint64(first)
 		return x, nil
 	}
-	if first <= twoByteDecodeRangeHiEnd {
+	if first < multiByteDecodeRangeLowEnd {
 		second, err := r.ReadByte()
 		if err != nil {
 			if err == io.EOF {
@@ -119,31 +119,23 @@ const (
 	maxVarIntLen64 = 9
 
 	twoByteDecodeRangeLowEnd   = 128 // 240+1
-	twoByteDecodeRangeHiEnd    = 248
 	twoByteDecodeRangeLen      = 120 // 128...248
 	multiByteDecodeRangeLowEnd = 249
 
-	oneByteThreshold  = 127
-	twoBytesThreshold = 31103 // 128 + 256 * 120 + 255
-	// These are encoded into an array to simplify implementation
-	// threeBytesThreshold = 65535
-	// fourBytesThreshold  = 16777215
-	// fiveBytesThreshold  = 4294967295
-	// sixBytesThreshold   = 1099511627775
-	// sevenBytesThreshold = 281474976710655
-	// eightBytesThreshold = 72057594037927935
+	twoBytesThreshold = 31104 // 1 greater than (128 + 256 * 120 + 255 = 31103)
 )
 
 var thresholds = []uint64{
 	// These are just the regular thresholds
-	127,
-	31103,
-	// The rest of these are just (2 ** (8*x) - 1)
+	128,
+	31104,
+	// The rest of these are just 2 ** (8*x)
 	// 3 bytes, ... until 8 bytes
-	65535,
-	16777215,
-	4294967295,
-	1099511627775,
-	281474976710655,
-	72057594037927935,
+	// python3 -c "[2 ** (8*x) for x in [3, 4, 5, 6, 7]]"
+	65536,
+	16777216,
+	4294967296,
+	1099511627776,
+	281474976710656,
+	72057594037927936,
 }
