@@ -75,20 +75,40 @@ func TestThreeByteVarInt(t *testing.T) {
 	}
 }
 
-func TestBiggerVarIntQuick(t *testing.T) {
-	seen := make(map[uint64]bool)
-	for i := uint64(2288); i <= 100000; i++ {
-		vint := varint.Encode64(i)
-
-		key := uint64(0)
-		for _, b := range vint {
-			key = key << 8
-			key += uint64(b)
+func TestFourByteVarInt(t *testing.T) {
+	for i := uint64(65536); i <= 16777215; i++ {
+		b := varint.Encode64(i)
+		if len(b) != 4 {
+			t.Errorf("%d: Length of b should be 4, got %d", i, len(b))
 		}
-
-		if _, ok := seen[key]; ok {
-			t.Errorf("%d: Duplicated key, %v", i, vint)
+		if b[0] != 250 {
+			t.Errorf("%d: expected 249", i)
 		}
-		seen[key] = true
+		buf := bytes.NewBuffer(b)
+		decoded, err := varint.Decode64(buf)
+		if err != nil {
+			t.Errorf("%d: %v", i, err)
+		}
+		if decoded != i {
+			t.Errorf("%d: Decoded %d", i, decoded)
+		}
 	}
 }
+
+// func TestBiggerVarIntQuick(t *testing.T) {
+// 	seen := make(map[uint64]bool)
+// 	for i := uint64(2288); i <= 100000; i++ {
+// 		vint := varint.Encode64(i)
+
+// 		key := uint64(0)
+// 		for _, b := range vint {
+// 			key = key << 8
+// 			key += uint64(b)
+// 		}
+
+// 		if _, ok := seen[key]; ok {
+// 			t.Errorf("%d: Duplicated key, %v", i, vint)
+// 		}
+// 		seen[key] = true
+// 	}
+// }
