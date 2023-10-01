@@ -38,7 +38,7 @@ func Encode64(x uint64) []byte {
 		q, r := (y / 256), (y % 256)
 		if q > twoByteDecodeRangeLen {
 			// sanity checks
-			panic(fmt.Sprintf("q should be between 0 and 120, got %d", q))
+			panic(fmt.Sprintf("q should be between 0 and %d, got %d", twoByteDecodeRangeLen, q))
 		}
 		b := make([]byte, 2)
 		b[0] = twoByteDecodeRangeLowEnd + byte(q)
@@ -60,7 +60,8 @@ func Encode64(x uint64) []byte {
 
 	// Store it as a big-endian integer
 	b := make([]byte, numTotalBytes)
-	b[0] = byte(multiByteDecodeRangeLowEnd + numTotalBytes - 3) // minus 3, because 249 maps to 3
+	multiByteDecodeOffset := numTotalBytes - 3 // minus 3, because 249 maps to 3
+	b[0] = byte(multiByteDecodeRangeLowEnd + multiByteDecodeOffset)
 	i := numTotalBytes - 1
 	for x > 0 {
 		// Write to b backwards, so that the ultimate order is big-endian
