@@ -72,11 +72,11 @@ func Encode64(x uint64) []byte {
 	return b
 }
 
-// Decode64 reads an encoded unsigned integer from r and returns it as a uint64.
+// Decode reads an encoded unsigned integer from r and returns it as a uint64.
 // The error is EOF only if no bytes were read.
 // If an EOF happens after reading some but not all the bytes,
 // ReadUvarint returns io.ErrUnexpectedEOF.
-func Decode64(r io.ByteReader) (uint64, error) {
+func Decode(r io.ByteReader) (uint64, error) {
 	var x uint64
 	first, err := r.ReadByte()
 	if err != nil {

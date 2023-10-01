@@ -14,7 +14,7 @@ func TestOneByteVarInt(t *testing.T) {
 			t.Errorf("%d: Length of b should be 1, got %d", i, len(b))
 		}
 		buf := bytes.NewBuffer(b)
-		decoded, err := varint.Decode64(buf)
+		decoded, err := varint.Decode(buf)
 		if err != nil {
 			t.Errorf("%d: %v", i, err)
 		}
@@ -39,7 +39,7 @@ func TestTwoByteVarInt(t *testing.T) {
 		}
 
 		buf := bytes.NewBuffer(b)
-		decoded, err := varint.Decode64(buf)
+		decoded, err := varint.Decode(buf)
 		if err != nil {
 			t.Errorf("%d: %v", i, err)
 		}
@@ -65,7 +65,7 @@ func TestThreeByteVarInt(t *testing.T) {
 			t.Errorf("%d: expected 249", i)
 		}
 		buf := bytes.NewBuffer(b)
-		decoded, err := varint.Decode64(buf)
+		decoded, err := varint.Decode(buf)
 		if err != nil {
 			t.Errorf("%d: %v", i, err)
 		}
@@ -85,7 +85,7 @@ func TestFourByteVarInt(t *testing.T) {
 			t.Errorf("%d: expected 250", i)
 		}
 		buf := bytes.NewBuffer(b)
-		decoded, err := varint.Decode64(buf)
+		decoded, err := varint.Decode(buf)
 		if err != nil {
 			t.Errorf("%d: %v", i, err)
 		}
