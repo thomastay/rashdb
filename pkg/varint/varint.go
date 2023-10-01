@@ -8,7 +8,7 @@
 // ## Encoding
 // 0-127 (1 byte): just 0-127 as itself
 // 128-248 (2 bytes): 128 + 256 \* (X-128) + A1 (max of 31103)
-// 249 (3 bytes): A1..A2 as big endian integer (31103 to 65535)
+// 249 (3 bytes): A1..A2 as big endian integer (31104 to 65535)
 // 250 (4 bytes): A1..A3 as big-endian integer (2 ** 16 to 2**24-1)
 // ...
 // 255 (9 bytes): A1..A8 as a big endian integer. (2 ** 56 to 2 ** 64-1)
