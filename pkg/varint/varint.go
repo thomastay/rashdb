@@ -84,6 +84,9 @@ func Decode(r io.Reader) (uint64, error) {
 	var x uint64
 	first, err := readByte(r)
 	if err != nil {
+		if err == io.ErrUnexpectedEOF {
+			return 0, io.EOF
+		}
 		return 0, err
 	}
 	if first < twoByteDecodeRangeLowEnd {

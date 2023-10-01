@@ -2,7 +2,6 @@ package main
 
 import (
 	"bytes"
-	"encoding/binary"
 	"errors"
 	"fmt"
 	"io"
@@ -10,6 +9,7 @@ import (
 
 	"github.com/thomastay/rash-db/pkg/common"
 	"github.com/thomastay/rash-db/pkg/disk"
+	"github.com/thomastay/rash-db/pkg/varint"
 	"github.com/vmihailenco/msgpack/v5"
 )
 
@@ -80,11 +80,11 @@ func parseTable(buf io.Reader) (disk.Table, error) {
 
 func parseTableData(buf *bytes.Buffer) (*disk.KeyValue, error) {
 	// TODO more than one elt please
-	keyLen, err := binary.ReadUvarint(buf)
+	keyLen, err := varint.Decode(buf)
 	if err != nil {
 		return nil, err
 	}
-	valLen, err := binary.ReadUvarint(buf)
+	valLen, err := varint.Decode(buf)
 	if err != nil {
 		return nil, err
 	}

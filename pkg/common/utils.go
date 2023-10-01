@@ -2,15 +2,18 @@ package common
 
 import (
 	"bytes"
-	"encoding/binary"
 	"io"
+
+	"github.com/thomastay/rash-db/pkg/varint"
 )
 
-func WriteUVarIntToBuffer(buffer *bytes.Buffer, x uint64) {
-	// Weird that this is not in the standard library?
-	var buf []byte
-	buf = binary.AppendUvarint(buf, x)
+func WriteVarIntToBuffer(buffer *bytes.Buffer, x int) error {
+	buf, err := varint.Encode(x)
+	if err != nil {
+		return err
+	}
 	buffer.Write(buf)
+	return nil
 }
 
 // Read exactly n bytes from the reader, or it returns an error

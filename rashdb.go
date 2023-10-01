@@ -226,8 +226,8 @@ func (n *tableNode) MarshalBinary() ([]byte, error) {
 	}
 	// Write key length, and vals length to disk, then key and val
 	// TODO probably wrap this somehow?
-	common.WriteUVarIntToBuffer(&buf, uint64(len(keyBytes)))
-	common.WriteUVarIntToBuffer(&buf, uint64(len(valBytes)))
+	common.WriteVarIntToBuffer(&buf, len(keyBytes))
+	common.WriteVarIntToBuffer(&buf, len(valBytes))
 	buf.Write(keyBytes)
 	buf.Write(valBytes)
 
