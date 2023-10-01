@@ -31,6 +31,12 @@ func TestTwoByteVarInt(t *testing.T) {
 		if len(b) != 2 {
 			t.Errorf("%d: Length of b should be 2, got %d", i, len(b))
 		}
+		if b[0] < 128 {
+			t.Errorf("%d: 0-127 should be single bytes", i)
+		}
+		if b[0] > 248 {
+			t.Errorf("%d: 249 and abve should be three or more bytes", i)
+		}
 
 		buf := bytes.NewBuffer(b)
 		decoded, err := varint.Decode64(buf)
@@ -54,6 +60,9 @@ func TestThreeByteVarInt(t *testing.T) {
 		b := varint.Encode64(i)
 		if len(b) != 3 {
 			t.Errorf("%d: Length of b should be 3, got %d", i, len(b))
+		}
+		if b[0] != 249 {
+			t.Errorf("%d: expected 249", i)
 		}
 		buf := bytes.NewBuffer(b)
 		decoded, err := varint.Decode64(buf)
