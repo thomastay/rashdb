@@ -6,9 +6,9 @@
 // 3. Memcmp two pointers determines size without decoding
 //
 // ## Encoding
-// 0-240 (1 byte): just 0-240 as itself
-// 241-248 (2 bytes): 240 + 256 \* (X-241) + A1 (max of 2287)
-// 249 (3 bytes): A1..A2 as big endian integer (2288 - 65535)
+// 0-127 (1 byte): just 0-127 as itself
+// 128-248 (2 bytes): 128 + 256 \* (X-128) + A1 (max of 31103)
+// 249 (3 bytes): A1..A2 as big endian integer (31103 to 65535)
 // 250 (4 bytes): A1..A3 as big-endian integer (2 ** 16 to 2**24-1)
 // ...
 // 255 (9 bytes): A1..A8 as a big endian integer. (2 ** 56 to 2 ** 64-1)
@@ -17,6 +17,7 @@ package varint
 
 import (
 	"errors"
+	"fmt"
 	"io"
 )
 
@@ -33,11 +34,11 @@ func Encode64(x uint64) []byte {
 		return []byte{byte(x)}
 	}
 	if x <= twoBytesThreshold {
-		y := x - oneByteThreshold // We only need to encode the part that is bigger than the one byte threshold
+		y := x - twoByteDecodeRangeLowEnd // We only need to encode the part that is bigger than the one byte threshold
 		q, r := (y / 256), (y % 256)
-		if q >= 8 {
+		if q > twoByteDecodeRangeLen {
 			// sanity checks
-			panic("q should be between 0-7")
+			panic(fmt.Sprintf("q should be between 0 and 120, got %d", q))
 		}
 		b := make([]byte, 2)
 		b[0] = twoByteDecodeRangeLowEnd + byte(q)
@@ -94,7 +95,7 @@ func Decode64(r io.ByteReader) (uint64, error) {
 			return x, err
 		}
 		q := uint64(first - twoByteDecodeRangeLowEnd)
-		x = oneByteThreshold + 256*q + uint64(second)
+		x = twoByteDecodeRangeLowEnd + 256*q + uint64(second)
 		return x, nil
 	}
 	// Else, it is encoded as a big-endian integer in the rest of the bytes
@@ -117,12 +118,13 @@ func Decode64(r io.ByteReader) (uint64, error) {
 const (
 	maxVarIntLen64 = 9
 
-	twoByteDecodeRangeLowEnd   = 241 // 240+1
+	twoByteDecodeRangeLowEnd   = 128 // 240+1
 	twoByteDecodeRangeHiEnd    = 248
+	twoByteDecodeRangeLen      = 120 // 128...248
 	multiByteDecodeRangeLowEnd = 249
 
-	oneByteThreshold  = 240
-	twoBytesThreshold = 2287 // 240 + 256 * 7 + 255
+	oneByteThreshold  = 127
+	twoBytesThreshold = 31103 // 128 + 256 * 120 + 255
 	// These are encoded into an array to simplify implementation
 	// threeBytesThreshold = 65535
 	// fourBytesThreshold  = 16777215
@@ -134,8 +136,8 @@ const (
 
 var thresholds = []uint64{
 	// These are just the regular thresholds
-	240,
-	2287,
+	127,
+	31103,
 	// The rest of these are just (2 ** (8*x) - 1)
 	// 3 bytes, ... until 8 bytes
 	65535,

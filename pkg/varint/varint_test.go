@@ -8,7 +8,7 @@ import (
 )
 
 func TestOneByteVarInt(t *testing.T) {
-	for i := uint64(0); i <= 240; i++ {
+	for i := uint64(0); i <= 127; i++ {
 		b := varint.Encode64(i)
 		if len(b) != 1 {
 			t.Errorf("%d: Length of b should be 1, got %d", i, len(b))
@@ -26,7 +26,7 @@ func TestOneByteVarInt(t *testing.T) {
 
 func TestTwoByteVarInt(t *testing.T) {
 	seen := make(map[uint16]bool)
-	for i := uint64(241); i <= 2287; i++ {
+	for i := uint64(128); i <= 31103; i++ {
 		b := varint.Encode64(i)
 		if len(b) != 2 {
 			t.Errorf("%d: Length of b should be 2, got %d", i, len(b))
@@ -50,7 +50,7 @@ func TestTwoByteVarInt(t *testing.T) {
 }
 
 func TestThreeByteVarInt(t *testing.T) {
-	for i := uint64(2288); i <= 65535; i++ {
+	for i := uint64(31104); i <= 65535; i++ {
 		b := varint.Encode64(i)
 		if len(b) != 3 {
 			t.Errorf("%d: Length of b should be 3, got %d", i, len(b))
