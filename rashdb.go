@@ -211,7 +211,7 @@ func (n *tableNode) MarshalBinary() ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	// TODO sort data
+	// TODO sort data by primary key
 	// TODO assume more than one data elt
 	data := n.data[0]
 
@@ -236,6 +236,7 @@ func (n *tableNode) MarshalBinary() ([]byte, error) {
 
 func colsMapToBytes(cols map[string]interface{}) ([]byte, error) {
 	var buf bytes.Buffer
+	// TODO use the msgpack pool to speed things up
 	enc := msgpack.NewEncoder(&buf)
 	for _, val := range cols {
 		err := enc.Encode(val)
