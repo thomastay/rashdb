@@ -15,7 +15,10 @@
 // 8 bytes can store vals of length 2^64-1, which is as much as a 64-bit machine can hold anyway.
 package varint
 
-import "errors"
+import (
+	"errors"
+	"io"
+)
 
 // This is a convenience method to encode array lengths. Callers who need flexibility should use Encode64
 func Encode(x int) ([]byte, error) {
@@ -37,26 +40,26 @@ func Encode64(x uint64) []byte {
 			panic("q should be between 0-7")
 		}
 		b := make([]byte, 2)
-		b[0] = 240 + byte(q)
+		b[0] = twoByteDecodeRangeLowEnd + byte(q)
 		b[1] = byte(r)
 		return b
 	}
 
 	// find threshold
-	numTotalBytes := 9
+	numTotalBytes := maxVarIntLen64
 	for i, threshold := range thresholds {
 		if x <= threshold {
-			numTotalBytes = i + 3
+			numTotalBytes = i + 1
 			break
 		}
 	}
-	if numTotalBytes >= 10 {
+	if numTotalBytes > maxVarIntLen64 {
 		panic("wrong numTotalBytes")
 	}
 
 	// Store it as a big-endian integer
 	b := make([]byte, numTotalBytes)
-	b[0] = byte(249 + numTotalBytes - 3)
+	b[0] = byte(multiByteDecodeRangeLowEnd + numTotalBytes - 3) // minus 3, because 249 maps to 3
 	i := numTotalBytes - 1
 	for x > 0 {
 		// Write to b backwards, so that the ultimate order is big-endian
@@ -68,7 +71,56 @@ func Encode64(x uint64) []byte {
 	return b
 }
 
+// Decode64 reads an encoded unsigned integer from r and returns it as a uint64.
+// The error is EOF only if no bytes were read.
+// If an EOF happens after reading some but not all the bytes,
+// ReadUvarint returns io.ErrUnexpectedEOF.
+func Decode64(r io.ByteReader) (uint64, error) {
+	var x uint64
+	first, err := r.ReadByte()
+	if err != nil {
+		return 0, err
+	}
+	if first <= oneByteThreshold {
+		x = uint64(first)
+		return x, nil
+	}
+	if first <= twoByteDecodeRangeHiEnd {
+		second, err := r.ReadByte()
+		if err != nil {
+			if err == io.EOF {
+				return x, io.ErrUnexpectedEOF
+			}
+			return x, err
+		}
+		q := uint64(first - twoByteDecodeRangeLowEnd)
+		x = oneByteThreshold + 256*q + uint64(second)
+		return x, nil
+	}
+	// Else, it is encoded as a big-endian integer in the rest of the bytes
+	numBytesToRead := first - 247 // 249:2, 250:3, ... 255:8
+	for i := 0; i < int(numBytesToRead); i++ {
+		b, err := r.ReadByte()
+		if err != nil {
+			if err == io.EOF {
+				return x, io.ErrUnexpectedEOF
+			}
+			return x, err
+		}
+
+		x <<= 8
+		x += uint64(b)
+	}
+	return x, nil
+}
+
 const (
+	maxVarIntLen64 = 9
+
+	twoByteDecodeRangeLowEnd   = 241 // 240+1
+	twoByteDecodeRangeHiEnd    = 248
+	multiByteDecodeRangeLowEnd = 249
+
 	oneByteThreshold  = 240
 	twoBytesThreshold = 2287 // 240 + 256 * 7 + 255
 	// These are encoded into an array to simplify implementation
@@ -81,6 +133,9 @@ const (
 )
 
 var thresholds = []uint64{
+	// These are just the regular thresholds
+	240,
+	2287,
 	// The rest of these are just (2 ** (8*x) - 1)
 	// 3 bytes, ... until 8 bytes
 	65535,
