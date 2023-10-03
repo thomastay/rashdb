@@ -7,6 +7,7 @@ import (
 	"io"
 	"os"
 
+	"github.com/thomastay/rash-db/pkg/app"
 	"github.com/thomastay/rash-db/pkg/common"
 	"github.com/thomastay/rash-db/pkg/disk"
 	"github.com/thomastay/rash-db/pkg/varint"
@@ -45,12 +46,12 @@ func run() error {
 		fmt.Printf("  Col %d: %s - %s\n", i, col.Key, col.Value.String())
 	}
 
-	kv, err := parseTableData(buf)
+	kv, err := parseTableData(buf, &table)
 	if err != nil {
 		return err
 	}
 	// TODO unmarshal these from messagepack? That should be a DB specific function
-	fmt.Printf("Key: %s (%d)\nVal:%s (%d)\n", kv.Key, len(kv.Key), kv.Val, len(kv.Val))
+	fmt.Printf("Key: \nSymbol: %s\nVal:%+v\n", kv.Key["Symbol"], kv.Val)
 	return nil
 }
 
@@ -78,7 +79,7 @@ func parseTable(buf io.Reader) (disk.Table, error) {
 	return tbl, nil
 }
 
-func parseTableData(buf *bytes.Buffer) (*disk.KeyValue, error) {
+func parseTableData(buf *bytes.Buffer, tbl *disk.Table) (*app.TableKeyValue, error) {
 	// TODO more than one elt please
 	keyLen, err := varint.Decode(buf)
 	if err != nil {
@@ -97,5 +98,10 @@ func parseTableData(buf *bytes.Buffer) (*disk.KeyValue, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &kv, nil
+	appKV, err := app.DecodeKeyValue(tbl, kv)
+	if err != nil {
+		return nil, err
+	}
+
+	return appKV, nil
 }
