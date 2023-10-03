@@ -3,7 +3,6 @@ package main
 import (
 	"bytes"
 	"errors"
-	"fmt"
 	"io"
 	"os"
 
@@ -32,31 +31,48 @@ func run() error {
 	if err != nil {
 		return err
 	}
-	fmt.Println("========= Header ============")
-	fmt.Printf("Magic: %s\n", string(header.Magic[:]))
-	fmt.Printf("Version: %d\n", header.Version)
-	fmt.Println("========= Table ============")
+
+	out := NewStreamer(os.Stdout)
+	defer out.Flush()
+
+	out.StreamObjOpen("")
+	out.StreamObjOpen("Header")
+	out.StreamKV("Magic", string(header.Magic[:]))
+	out.StreamKV("Version", header.Version)
+	out.StreamObjClose()
+	out.StreamArrOpen("Tables")
+	out.StreamObjOpen("")
 	table, err := parseTable(buf)
 	if err != nil {
 		return err
 	}
-	fmt.Printf("Table %s\n", table.Name)
-	fmt.Printf("  Primary key %s\n", table.PrimaryKey)
-	for i, col := range table.Columns {
-		fmt.Printf("  Col %d: %s - %s\n", i, col.Key, col.Value.String())
+	out.StreamKV("Name", table.Name)
+	out.StreamKV("Primary key", table.PrimaryKey)
+	out.StreamArrOpen("Cols")
+	for _, col := range table.Columns {
+		out.StreamObjOpen("")
+		out.StreamKV(col.Key, col.Value.String())
+		out.StreamObjClose()
 	}
+	out.StreamArrClose()
 
 	kv, err := parseTableData(buf, &table)
 	if err != nil {
 		return err
 	}
-	// TODO unmarshal these from messagepack? That should be a DB specific function
-	fmt.Println("  Bar: {")
+
+	out.StreamArrOpen("Data")
+	// TODO for data in data
+	out.StreamObjOpen("")
 	cols := kv.Cols()
 	for k, v := range cols {
-		fmt.Printf("    %+v: %+v\n", k, v)
+		out.StreamKV(k, v)
 	}
-	fmt.Println("  }")
+	out.StreamObjClose()
+	out.StreamArrClose() // end data
+	out.StreamObjClose() // end table
+	out.StreamArrClose() // end tables
+	out.StreamObjClose() // end
 	return nil
 }
 
