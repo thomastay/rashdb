@@ -9,6 +9,9 @@ import (
 	"strings"
 )
 
+// Streams data in JSON5 format (allows trailing commas)
+// The purpose is to allow dumping of data to the console even if the DB file is really big
+// without holding everything in memory (DB files can be gigabytes large!)
 type Streamer struct {
 	*bufio.Writer
 	indent int
@@ -23,7 +26,7 @@ func (s *Streamer) StreamKV(key string, val interface{}) error {
 	if err != nil {
 		return err
 	}
-	buf := fmt.Sprintf("%s\"%s\": %s\n", strings.Repeat(" ", s.indent), key, valBytes)
+	buf := fmt.Sprintf("%s\"%s\": %s,\n", strings.Repeat(" ", s.indent), key, valBytes)
 	s.Write([]byte(buf))
 	return nil
 }
@@ -48,12 +51,15 @@ func (s *Streamer) StreamObjOpen(str string) error {
 	return nil
 }
 
-func (s *Streamer) StreamObjClose() error {
+func (s *Streamer) StreamObjClose(trailing bool) error {
 	s.indent -= 2
 	if s.indent < 0 {
 		return errors.New("Close called before Open")
 	}
 	buf := fmt.Sprintf("%s},\n", strings.Repeat(" ", s.indent))
+	if !trailing {
+		buf = fmt.Sprintf("%s}\n", strings.Repeat(" ", s.indent))
+	}
 	s.Write([]byte(buf))
 	return nil
 }

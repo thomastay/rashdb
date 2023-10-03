@@ -39,7 +39,7 @@ func run() error {
 	out.StreamObjOpen("Header")
 	out.StreamKV("Magic", string(header.Magic[:]))
 	out.StreamKV("Version", header.Version)
-	out.StreamObjClose()
+	out.StreamObjClose(true)
 	out.StreamArrOpen("Tables")
 	out.StreamObjOpen("")
 	table, err := parseTable(buf)
@@ -47,12 +47,12 @@ func run() error {
 		return err
 	}
 	out.StreamKV("Name", table.Name)
-	out.StreamKV("Primary key", table.PrimaryKey)
+	out.StreamKV("PrimaryKey", table.PrimaryKey)
 	out.StreamArrOpen("Cols")
 	for _, col := range table.Columns {
 		out.StreamObjOpen("")
 		out.StreamKV(col.Key, col.Value.String())
-		out.StreamObjClose()
+		out.StreamObjClose(true)
 	}
 	out.StreamArrClose()
 
@@ -68,11 +68,11 @@ func run() error {
 	for k, v := range cols {
 		out.StreamKV(k, v)
 	}
-	out.StreamObjClose()
-	out.StreamArrClose() // end data
-	out.StreamObjClose() // end table
-	out.StreamArrClose() // end tables
-	out.StreamObjClose() // end
+	out.StreamObjClose(true)
+	out.StreamArrClose()      // end data
+	out.StreamObjClose(true)  // end table
+	out.StreamArrClose()      // end tables
+	out.StreamObjClose(false) // end
 	return nil
 }
 
