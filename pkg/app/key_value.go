@@ -52,3 +52,15 @@ type TableKeyValue struct {
 	Key map[string]interface{}
 	Val map[string]interface{}
 }
+
+// Just the columns of both the key and value (useful at the application layer)
+func (kv *TableKeyValue) Cols() map[string]interface{} {
+	res := make(map[string]interface{})
+	for k, v := range kv.Key {
+		res[k] = v
+	}
+	for k, v := range kv.Val {
+		res[k] = v
+	}
+	return res
+}

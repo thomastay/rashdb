@@ -51,7 +51,12 @@ func run() error {
 		return err
 	}
 	// TODO unmarshal these from messagepack? That should be a DB specific function
-	fmt.Printf("Key: \nSymbol: %s\nVal:%+v\n", kv.Key["Symbol"], kv.Val)
+	fmt.Println("  Bar: {")
+	cols := kv.Cols()
+	for k, v := range cols {
+		fmt.Printf("    %+v: %+v\n", k, v)
+	}
+	fmt.Println("  }")
 	return nil
 }
 
