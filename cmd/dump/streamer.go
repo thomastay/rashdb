@@ -1,7 +1,6 @@
 package main
 
 import (
-	"bufio"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -13,12 +12,12 @@ import (
 // The purpose is to allow dumping of data to the console even if the DB file is really big
 // without holding everything in memory (DB files can be gigabytes large!)
 type Streamer struct {
-	*bufio.Writer
+	io.Writer
 	indent int
 }
 
 func NewStreamer(w io.Writer) *Streamer {
-	return &Streamer{Writer: bufio.NewWriter(w)}
+	return &Streamer{Writer: w}
 }
 
 func (s *Streamer) StreamKV(key string, val interface{}) error {

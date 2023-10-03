@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bufio"
 	"bytes"
 	"errors"
 	"io"
@@ -32,8 +33,9 @@ func run() error {
 		return err
 	}
 
-	out := NewStreamer(os.Stdout)
-	defer out.Flush()
+	bufferedStdout := bufio.NewWriter(os.Stdout)
+	defer bufferedStdout.Flush()
+	out := NewStreamer(bufferedStdout)
 
 	out.StreamObjOpen("")
 	out.StreamObjOpen("Header")
