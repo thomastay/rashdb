@@ -8,6 +8,7 @@ import (
 	"github.com/thomastay/rash-db/pkg/app"
 	"github.com/thomastay/rash-db/pkg/common"
 	"github.com/thomastay/rash-db/pkg/disk"
+	"github.com/thomastay/rash-db/pkg/varint"
 	"github.com/vmihailenco/msgpack/v5"
 )
 
@@ -19,7 +20,11 @@ type DB struct {
 	table *tableNode
 }
 
-func Open(filename string) (*DB, error) {
+type DBOpenOptions struct {
+	PageSize int
+}
+
+func Open(filename string, options *DBOpenOptions) (*DB, error) {
 	var err error
 	db := DB{path: filename}
 	db.file, err = os.Create(filename)
@@ -33,6 +38,11 @@ func Open(filename string) (*DB, error) {
 	}
 	if info.Size() == 0 {
 		// initialize DB
+		if options.PageSize == 0 {
+			db.header.PageSize = disk.DefaultDBPageSize
+		} else {
+			db.header.PageSize = uint16(options.PageSize)
+		}
 		return &db, nil
 	}
 	// Else, DB exists. Read from it.
@@ -124,7 +134,7 @@ func (db *DB) SyncAll() error {
 		return err
 	}
 	// TODO should probably write page by page
-	tblBytes, err := db.table.MarshalBinary()
+	tblBytes, err := db.table.MarshalBinary(int(db.header.PageSize))
 	if err != nil {
 		return err
 	}
@@ -202,7 +212,7 @@ type tableNode struct {
 	columns map[string]disk.DataType
 }
 
-func (n *tableNode) MarshalBinary() ([]byte, error) {
+func (n *tableNode) MarshalBinary(pageSize int) ([]byte, error) {
 	var buf bytes.Buffer
 
 	tblHeader := &n.headers
@@ -214,25 +224,66 @@ func (n *tableNode) MarshalBinary() ([]byte, error) {
 	}
 	// TODO sort data by primary key
 
-	// TODO move this part to the page header
-	// Write the number of data elements to the buffer
-	common.WriteVarIntToBuffer(&buf, len(n.data))
+	dataPage, err := n.EncodeDataAsPage(pageSize)
+	if err != nil {
+		return nil, err
+	}
+	pageBytes, err := dataPage.MarshalBinary(pageSize)
+	if err != nil {
+		return nil, err
+	}
+	buf.Write(pageBytes)
+	return buf.Bytes(), nil
+}
 
-	for _, data := range n.data {
+// Assumption: all data fits on a single page
+func (n *tableNode) EncodeDataAsPage(pageSize int) (*disk.LeafPage, error) {
+	page := disk.LeafPage{}
+	numKV := len(n.data)
+	if numKV > 65536 {
+		panic("TODO: Multi-pages not implemented")
+	}
+	page.NumKV = uint16(numKV)
+
+	cells := make([]disk.Cell, 2*numKV)
+	for i, data := range n.data {
 		// Marshal primary key and vals
-		diskKV, err := app.EncodeKeyValue(tblHeader, &data)
+		diskKV, err := app.EncodeKeyValue(&n.headers, &data)
 		if err != nil {
 			return nil, err
 		}
 		keyBytes, valBytes := diskKV.Key, diskKV.Val
+		// TODO feat: overflow pages
 
-		// Write key length, and vals length to disk, then key and val
-		// TODO probably wrap this somehow?
-		common.WriteVarIntToBuffer(&buf, len(keyBytes))
-		common.WriteVarIntToBuffer(&buf, len(valBytes))
-		buf.Write(keyBytes)
-		buf.Write(valBytes)
+		cells[i*2] = disk.Cell{
+			Len:            varint.EncodeArrLen(len(keyBytes)),
+			PayloadInitial: keyBytes,
+		}
+		cells[i*2+1] = disk.Cell{
+			Len:            varint.EncodeArrLen(len(valBytes)),
+			PayloadInitial: valBytes,
+		}
 	}
+	page.Cells = cells
 
-	return buf.Bytes(), nil
+	// Calculate pointers
+	offsets := make([]uint16, 2*numKV+1)
+	ptr := 10 + 4*numKV
+	// ^^ 8 bytes header, then 2 bytes each for (2n + 1) pointers
+	offsets[0] = uint16(ptr)
+	for i := 1; i < len(offsets); i++ {
+		cell := cells[i-1]
+		ptr += len(cell.Len) + len(cell.PayloadInitial)
+		if cell.OffsetPageID != 0 {
+			ptr += 4
+		}
+		// check for overflow
+		if ptr >= pageSize {
+			panic("TODO feat: multiple pages")
+		}
+		offsets[i] = uint16(ptr)
+	}
+	page.Pointers = offsets
+
+	return &page, nil
 }

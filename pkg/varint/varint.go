@@ -21,12 +21,20 @@ import (
 	"io"
 )
 
-// This is a convenience method to encode array lengths. Callers who need flexibility should use Encode64
 func Encode(x int) ([]byte, error) {
 	if x < 0 {
 		return nil, errors.New("Only positive values can be encoded")
 	}
 	return Encode64(uint64(x)), nil
+}
+
+// This is a convenience method to encode array lens.
+// Panics if x < 0
+func EncodeArrLen(x int) []byte {
+	if x < 0 {
+		panic("Array lengths can never be negative")
+	}
+	return Encode64(uint64(x))
 }
 
 func Encode64(x uint64) []byte {

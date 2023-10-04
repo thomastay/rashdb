@@ -2,10 +2,16 @@ package disk
 
 import "errors"
 
+var ErrOutOfCapacity = errors.New("out of capacity")
+
 // A fixed Bytes Buffer is a fixed, preallocated buffer of bytes that cannot grow
 type fixedBytesBuffer struct {
 	buf []byte
 	pos int
+}
+
+func NewFixedBytesBuffer(buffer []byte) *fixedBytesBuffer {
+	return &fixedBytesBuffer{buf: buffer}
 }
 
 func (buffer *fixedBytesBuffer) Cap() int {
@@ -29,7 +35,16 @@ func (buffer *fixedBytesBuffer) Write(bs []byte) (int, error) {
 	}
 	buffer.pos += numToCopy
 	copy(buffer.buf[buffer.pos:], bs[:numToCopy])
-	return numToCopy, errors.New("Out of capacity")
+	return numToCopy, ErrOutOfCapacity
+}
+
+func (buffer *fixedBytesBuffer) WriteByte(c byte) error {
+	if buffer.Cap() == 0 {
+		return ErrOutOfCapacity
+	}
+	buffer.buf[buffer.pos] = c
+	buffer.pos++
+	return nil
 }
 
 func min(x, y int) int {

@@ -12,7 +12,9 @@ func main() {
 }
 
 func run() error {
-	db, err := rashdb.Open("db.db")
+	db, err := rashdb.Open("db.db", &rashdb.DBOpenOptions{
+		PageSize: 2048,
+	})
 	if err != nil {
 		return err
 	}

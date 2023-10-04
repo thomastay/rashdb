@@ -16,11 +16,13 @@ import (
 // Multi-byte structures are stored in Big endian format
 type Header struct {
 	// rashdb
-	Magic   [16]byte
-	Version uint32
+	Magic    [16]byte
+	Version  uint32
+	PageSize uint16
 }
 
 const DBHeaderSize = 128
+const DefaultDBPageSize = 4096
 
 var MagicHeader = [16]byte{
 	'r', 'a', 's', 'h', 'd', 'b', ' ',
@@ -31,15 +33,20 @@ var MagicHeader = [16]byte{
 var dbHeaderOrder = binary.BigEndian
 
 func (header *Header) MarshalBinary() (data []byte, err error) {
-	b := fixedBytesBuffer{buf: make([]byte, DBHeaderSize)}
+	b := NewFixedBytesBuffer(make([]byte, DBHeaderSize))
 
 	if header.Magic[0] == 0 {
 		// use default
-		binary.Write(&b, dbHeaderOrder, MagicHeader)
+		binary.Write(b, dbHeaderOrder, MagicHeader)
 	} else {
-		binary.Write(&b, dbHeaderOrder, MagicHeader)
+		binary.Write(b, dbHeaderOrder, header.Magic)
 	}
-	binary.Write(&b, dbHeaderOrder, header.Version)
+	binary.Write(b, dbHeaderOrder, header.Version)
+	if header.PageSize == 0 {
+		binary.Write(b, dbHeaderOrder, DefaultDBPageSize)
+	} else {
+		binary.Write(b, dbHeaderOrder, header.PageSize)
+	}
 
 	return b.Bytes(), nil
 }
