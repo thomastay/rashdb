@@ -8,7 +8,6 @@ import (
 	"os"
 
 	"github.com/thomastay/rash-db/pkg/app"
-	"github.com/thomastay/rash-db/pkg/common"
 	"github.com/thomastay/rash-db/pkg/disk"
 	"github.com/thomastay/rash-db/pkg/varint"
 	"github.com/vmihailenco/msgpack/v5"
@@ -49,7 +48,8 @@ func run() error {
 		return err
 	}
 	out.StreamKV("Name", table.Name)
-	out.StreamKV("PrimaryKey", table.PrimaryKey)
+	// feat: multi primary key
+	out.StreamKV("PrimaryKey", table.PrimaryKey[0].Key)
 	out.StreamArrOpen("Cols")
 	for _, col := range table.Columns {
 		out.StreamObjOpen("")
@@ -58,19 +58,20 @@ func run() error {
 	}
 	out.StreamArrClose()
 
-	kv, err := parseTableData(buf, &table)
+	kvs, err := parseTableData(buf, &table)
 	if err != nil {
 		return err
 	}
 
 	out.StreamArrOpen("Data")
-	// TODO for data in data
-	out.StreamObjOpen("")
-	cols := kv.Cols()
-	for k, v := range cols {
-		out.StreamKV(k, v)
+	for _, kv := range kvs {
+		out.StreamObjOpen("")
+		cols := kv.Cols()
+		for k, v := range cols {
+			out.StreamKV(k, v)
+		}
+		out.StreamObjClose(true)
 	}
-	out.StreamObjClose(true)
 	out.StreamArrClose()      // end data
 	out.StreamObjClose(true)  // end table
 	out.StreamArrClose()      // end tables
@@ -102,29 +103,22 @@ func parseTable(buf io.Reader) (disk.Table, error) {
 	return tbl, nil
 }
 
-func parseTableData(buf *bytes.Buffer, tbl *disk.Table) (*app.TableKeyValue, error) {
-	// TODO more than one elt please
-	keyLen, err := varint.Decode(buf)
+func parseTableData(buf *bytes.Buffer, tbl *disk.Table) ([]*app.TableKeyValue, error) {
+	n, err := varint.Decode(buf)
 	if err != nil {
 		return nil, err
 	}
-	valLen, err := varint.Decode(buf)
-	if err != nil {
-		return nil, err
+	data := make([]*app.TableKeyValue, n)
+	for i := 0; i < int(n); i++ {
+		diskKV, err := disk.ReadKV(buf)
+		if err != nil {
+			return nil, err
+		}
+		appKV, err := app.DecodeKeyValue(tbl, diskKV)
+		if err != nil {
+			return nil, err
+		}
+		data[i] = appKV
 	}
-	kv := disk.KeyValue{}
-	kv.Key, err = common.ReadExactly(buf, int(keyLen))
-	if err != nil {
-		return nil, err
-	}
-	kv.Val, err = common.ReadExactly(buf, int(valLen))
-	if err != nil {
-		return nil, err
-	}
-	appKV, err := app.DecodeKeyValue(tbl, kv)
-	if err != nil {
-		return nil, err
-	}
-
-	return appKV, nil
+	return data, nil
 }

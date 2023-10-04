@@ -5,6 +5,7 @@ import (
 	"os"
 	"reflect"
 
+	"github.com/thomastay/rash-db/pkg/app"
 	"github.com/thomastay/rash-db/pkg/common"
 	"github.com/thomastay/rash-db/pkg/disk"
 	"github.com/vmihailenco/msgpack/v5"
@@ -81,16 +82,15 @@ func (db *DB) Insert(
 
 	v := reflect.ValueOf(val)
 	typ := reflect.TypeOf(val)
-	data := tableNodeData{
-		cols: make(map[string]interface{}),
-	}
+	data := app.NewTableKeyValue()
 	var foundPrimary bool
 
 	for i := 0; i < v.NumField(); i++ {
 		field := v.Field(i)
 		fieldName := typ.Field(i).Name
-		if fieldName == string(table.headers.PrimaryKey) {
-			data.primaryVal = field.Interface()
+		// feat: multi primary key
+		if fieldName == table.headers.PrimaryKey[0].Key {
+			data.Key[fieldName] = field.Interface()
 			foundPrimary = true
 			continue
 		}
@@ -98,7 +98,7 @@ func (db *DB) Insert(
 		if _, ok := table.columns[fieldName]; ok {
 			fieldVal := field.Interface()
 			// TODO check value
-			data.cols[fieldName] = fieldVal
+			data.Val[fieldName] = fieldVal
 		} else {
 			return ErrInsertInvalidKey(fieldName)
 		}
@@ -137,7 +137,12 @@ func (db *DB) SyncAll() error {
 func (db *DB) createTable(tableName string, tableType interface{}, primaryKey string) (*tableNode, error) {
 	table := disk.Table{
 		Name:       tableName,
-		PrimaryKey: disk.PrimaryKeyType(primaryKey),
+		PrimaryKey: make([]disk.TableColumn, 1),
+	}
+	// feat: multi primary key
+	table.PrimaryKey[0] = disk.TableColumn{
+		Key:   primaryKey,
+		Value: disk.DBStr,
 	}
 
 	cols := make([]disk.TableColumn, 0)
@@ -169,8 +174,11 @@ func (db *DB) createTable(tableName string, tableType interface{}, primaryKey st
 			return nil, ErrInvalidTableValue
 		}
 
-		cols = append(cols, col)
-		colsMap[col.Key] = col.Value
+		// feat: multi primary key
+		if col.Key != primaryKey {
+			cols = append(cols, col)
+			colsMap[col.Key] = col.Value
+		}
 	}
 	table.Columns = cols
 	return &tableNode{
@@ -187,18 +195,11 @@ type tableNode struct {
 
 	headers disk.Table
 	// data not sorted, sort it lazily? Or maybe not?
-	data []tableNodeData
+	data []app.TableKeyValue
 
 	// --- Not persisted to disk ---
 	// this is the columns from the headers, but as a map.
 	columns map[string]disk.DataType
-}
-
-type tableNodeData struct {
-	primaryVal interface{}
-	// This map is a map from the key name to the value
-	// It doesn't contain the primary key
-	cols map[string]interface{}
 }
 
 func (n *tableNode) MarshalBinary() ([]byte, error) {
@@ -212,37 +213,26 @@ func (n *tableNode) MarshalBinary() ([]byte, error) {
 		return nil, err
 	}
 	// TODO sort data by primary key
-	// TODO assume more than one data elt
-	data := n.data[0]
 
-	// Marshal primary key and vals
-	keyBytes, err := msgpack.Marshal(data.primaryVal)
-	if err != nil {
-		return nil, err
-	}
-	valBytes, err := colsMapToBytes(data.cols)
-	if err != nil {
-		return nil, err
-	}
-	// Write key length, and vals length to disk, then key and val
-	// TODO probably wrap this somehow?
-	common.WriteVarIntToBuffer(&buf, len(keyBytes))
-	common.WriteVarIntToBuffer(&buf, len(valBytes))
-	buf.Write(keyBytes)
-	buf.Write(valBytes)
+	// TODO move this part to the page header
+	// Write the number of data elements to the buffer
+	common.WriteVarIntToBuffer(&buf, len(n.data))
 
-	return buf.Bytes(), nil
-}
-
-func colsMapToBytes(cols map[string]interface{}) ([]byte, error) {
-	var buf bytes.Buffer
-	// TODO use the msgpack pool to speed things up
-	enc := msgpack.NewEncoder(&buf)
-	for _, val := range cols {
-		err := enc.Encode(val)
+	for _, data := range n.data {
+		// Marshal primary key and vals
+		diskKV, err := app.EncodeKeyValue(tblHeader, &data)
 		if err != nil {
 			return nil, err
 		}
+		keyBytes, valBytes := diskKV.Key, diskKV.Val
+
+		// Write key length, and vals length to disk, then key and val
+		// TODO probably wrap this somehow?
+		common.WriteVarIntToBuffer(&buf, len(keyBytes))
+		common.WriteVarIntToBuffer(&buf, len(valBytes))
+		buf.Write(keyBytes)
+		buf.Write(valBytes)
 	}
+
 	return buf.Bytes(), nil
 }
