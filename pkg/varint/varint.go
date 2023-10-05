@@ -58,16 +58,7 @@ func Encode64(x uint64) []byte {
 
 	// Else, it is encoded as a big-endian integer in the rest of the bytes
 	// Find the number of bytes we should write based on a lookup table of max ints
-	numTotalBytes := maxVarIntLen64
-	for i, threshold := range thresholds {
-		if x < threshold {
-			numTotalBytes = i + 1
-			break
-		}
-	}
-	if numTotalBytes > maxVarIntLen64 {
-		panic("wrong numTotalBytes")
-	}
+	numTotalBytes := NumBytesNeededToEncode(x)
 
 	// Store it as a big-endian integer
 	b := make([]byte, numTotalBytes)
@@ -82,6 +73,17 @@ func Encode64(x uint64) []byte {
 		i--
 	}
 	return b
+}
+
+// Returns the number of bytes needed to encode x as a varint
+// Implemented quicker than actually encoding it
+func NumBytesNeededToEncode(x uint64) int {
+	for i, threshold := range thresholds {
+		if x < threshold {
+			return i + 1
+		}
+	}
+	return maxVarIntLen64
 }
 
 // Decode reads an encoded unsigned integer from r and returns it as a uint64.

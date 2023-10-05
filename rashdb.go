@@ -256,11 +256,11 @@ func (n *tableNode) EncodeDataAsPage(pageSize int) (*disk.LeafPage, error) {
 		// TODO feat: overflow pages
 
 		cells[i*2] = disk.Cell{
-			Len:            varint.EncodeArrLen(len(keyBytes)),
+			PayloadLen:     uint64(len(keyBytes)),
 			PayloadInitial: keyBytes,
 		}
 		cells[i*2+1] = disk.Cell{
-			Len:            varint.EncodeArrLen(len(valBytes)),
+			PayloadLen:     uint64(len(valBytes)),
 			PayloadInitial: valBytes,
 		}
 	}
@@ -273,7 +273,7 @@ func (n *tableNode) EncodeDataAsPage(pageSize int) (*disk.LeafPage, error) {
 	offsets[0] = uint16(ptr)
 	for i := 1; i < len(offsets); i++ {
 		cell := cells[i-1]
-		ptr += len(cell.Len) + len(cell.PayloadInitial)
+		ptr += varint.NumBytesNeededToEncode(cell.PayloadLen) + len(cell.PayloadInitial)
 		if cell.OffsetPageID != 0 {
 			ptr += 4
 		}
