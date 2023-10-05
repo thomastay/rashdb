@@ -215,6 +215,8 @@ func (db *DB) createTable(tableName string, tableType interface{}, primaryKey st
 		Columns: colsMap,
 		root: &app.LeafNode{
 			PageSize: int(db.header.PageSize),
+			Headers:  &table,
+			Pager:    db.pager,
 		},
 	}, nil
 }

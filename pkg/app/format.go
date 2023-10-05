@@ -14,6 +14,8 @@ type LeafNode struct {
 	// TODO determine - is data sorted on insert? or only on commits?
 	Data    []TableKeyValue
 	Headers *disk.Table
+
+	Pager *Pager
 }
 
 // Assumption: all data fits on a single page
@@ -64,5 +66,7 @@ func (n *LeafNode) EncodeDataAsPage() (PagerInfo, error) {
 	}
 	page.Pointers = offsets
 
-	return PagerInfo{ID: n.ID, Page: &page}, nil
+	newFreeLeafPage := n.Pager.NewFreeLeafPage()
+	newFreeLeafPage.Page = &page
+	return newFreeLeafPage, nil
 }

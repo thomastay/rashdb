@@ -20,15 +20,17 @@ type Pager struct {
 	inUse map[int]map[uint64]bool // list of pages in use
 	// An counter that increments with every request
 	// Don't use zero here! zero is a null value
-	currReqID uint64
+	currReqID      uint64
+	nextFreePageID int // points to one past the last page
 }
 
 func NewPager(pageSize int, file *os.File) *Pager {
 	return &Pager{
-		PageSize:  pageSize,
-		file:      file,
-		inUse:     make(map[int]map[uint64]bool),
-		currReqID: 1,
+		PageSize:       pageSize,
+		file:           file,
+		inUse:          make(map[int]map[uint64]bool),
+		currReqID:      1,
+		nextFreePageID: 2, // 1 is always in use, as the root page
 	}
 }
 
@@ -95,6 +97,14 @@ func (p *Pager) WritePage(info PagerInfo) error {
 		info.Done()
 	}
 	return nil
+}
+
+func (p *Pager) NewFreeLeafPage() PagerInfo {
+	result := PagerInfo{
+		ID: p.nextFreePageID,
+	}
+	p.nextFreePageID++
+	return result
 }
 
 type PagerInfo struct {
