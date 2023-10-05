@@ -13,5 +13,5 @@ var (
 )
 
 func ErrInsertInvalidKey(name string) error {
-	return errors.New(fmt.Sprintf("insert: invalid key name %s", name))
+	return fmt.Errorf("insert: invalid key name %s", name)
 }

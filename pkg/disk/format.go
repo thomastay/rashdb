@@ -37,15 +37,15 @@ func (header *Header) MarshalBinary() (data []byte, err error) {
 
 	if header.Magic[0] == 0 {
 		// use default
-		binary.Write(b, dbHeaderOrder, MagicHeader)
+		common.Check(binary.Write(b, dbHeaderOrder, MagicHeader))
 	} else {
-		binary.Write(b, dbHeaderOrder, header.Magic)
+		common.Check(binary.Write(b, dbHeaderOrder, header.Magic))
 	}
-	binary.Write(b, dbHeaderOrder, header.Version)
+	common.Check(binary.Write(b, dbHeaderOrder, header.Version))
 	if header.PageSize == 0 {
-		binary.Write(b, dbHeaderOrder, DefaultDBPageSize)
+		common.Check(binary.Write(b, dbHeaderOrder, DefaultDBPageSize))
 	} else {
-		binary.Write(b, dbHeaderOrder, header.PageSize)
+		common.Check(binary.Write(b, dbHeaderOrder, header.PageSize))
 	}
 
 	return b.Bytes(), nil

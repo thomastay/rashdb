@@ -3,7 +3,6 @@ package disk
 import (
 	"bytes"
 	"encoding/binary"
-	"errors"
 	"fmt"
 	"math"
 
@@ -51,16 +50,9 @@ func (p *LeafPage) MarshalBinary(pageSize int) ([]byte, error) {
 	buf := NewFixedBytesBuffer(make([]byte, pageSize))
 
 	// ---- Write headers ---
-	buf.WriteByte(HeaderLeafPage)
-	err = binary.Write(buf, binary.BigEndian, p.NumKV)
-	if err != nil {
-		return nil, err
-	}
-	// err = binary.Write(buf, binary.BigEndian, p.CellOffset)
-	if err != nil {
-		return nil, err
-	}
-	buf.Write(make([]byte, 5)) // reserved bytes
+	common.Check(buf.WriteByte(HeaderLeafPage))
+	common.Check(binary.Write(buf, binary.BigEndian, p.NumKV))
+	common.Check(common.WriteExactly(buf, make([]byte, 5))) // reserved bytes
 	// ---- End headers ---
 
 	for _, ptr := range p.Pointers {
@@ -71,8 +63,14 @@ func (p *LeafPage) MarshalBinary(pageSize int) ([]byte, error) {
 	}
 
 	for _, cell := range p.Cells {
-		buf.Write(varint.Encode64(cell.PayloadLen))
-		buf.Write(cell.PayloadInitial)
+		err = common.WriteExactly(buf, varint.Encode64(cell.PayloadLen))
+		if err != nil {
+			return nil, err
+		}
+		err = common.WriteExactly(buf, cell.PayloadInitial)
+		if err != nil {
+			return nil, err
+		}
 		if cell.OffsetPageID != 0 {
 			err = binary.Write(buf, binary.BigEndian, cell.OffsetPageID)
 			if err != nil {
@@ -99,7 +97,7 @@ func Decode(pageBytes []byte, pageSize int) (*LeafPage, error) {
 		panic(err) // no way this can happen since we just checked the size above
 	}
 	if pageType != HeaderLeafPage {
-		return nil, errors.New(fmt.Sprintf("Wrong header value %d", pageType))
+		return nil, fmt.Errorf("Wrong header value %d", pageType)
 		// TODO other types of pages?
 	}
 	p := LeafPage{}
@@ -200,5 +198,5 @@ func maxNumKVPerPage(pageSize int) uint16 {
 }
 
 func errPageCorruption(s string, expected int, got uint64) error {
-	return errors.New(fmt.Sprintf("Page corruption: %s, expected %d, got %d", s, expected, got))
+	return fmt.Errorf("Page corruption: %s, expected %d, got %d", s, expected, got)
 }

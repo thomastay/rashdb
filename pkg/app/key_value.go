@@ -4,7 +4,6 @@ package app
 
 import (
 	"bytes"
-	"errors"
 	"fmt"
 	"io"
 
@@ -75,7 +74,7 @@ func colsMapToBytes(
 				return nil, err
 			}
 		} else {
-			return nil, errors.New(fmt.Sprintf("Column %s not found in database", name))
+			return nil, fmt.Errorf("Column %s not found in database", name)
 		}
 	}
 	return buf.Bytes(), nil

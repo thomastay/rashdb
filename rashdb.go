@@ -149,7 +149,10 @@ func (db *DB) SyncAll() error {
 		return err
 	}
 	buf.Write(tblBytes)
-	db.file.Write(buf.Bytes())
+	_, err = db.file.Write(buf.Bytes())
+	if err != nil {
+		return err
+	}
 
 	pagerInfo, err := db.table.root.EncodeDataAsPage()
 	if err != nil {

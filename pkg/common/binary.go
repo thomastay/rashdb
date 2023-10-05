@@ -7,8 +7,7 @@ func ReadUint16(r io.Reader) (uint16, error) {
 	if err != nil {
 		return 0, err
 	}
-	var result uint16
-	result = uint16(buf[0])*256 + uint16(buf[1])
+	result := uint16(buf[0])*256 + uint16(buf[1])
 	return result, nil
 }
 
