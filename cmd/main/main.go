@@ -36,11 +36,22 @@ func run() error {
 	}
 	err = db.Insert("Bars", Bar{
 		Symbol:    "SPY",
-		Timestamp: 1695885687,
+		Timestamp: 1695885688,
 		Open:      400.0,
 		High:      405.4,
 		Low:       395.0,
 		Close:     401.5,
+	})
+	if err != nil {
+		return err
+	}
+	err = db.Insert("Bars", Bar{
+		Symbol:    "HELE",
+		Timestamp: 1695885689,
+		Open:      105.0,
+		High:      109.4,
+		Low:       104.2,
+		Close:     105.1,
 	})
 	if err != nil {
 		return err
