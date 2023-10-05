@@ -15,17 +15,17 @@ import (
 // ```
 // (Header - fixed 8 bytes)
 // +-----+
-// + 0x1 + (Leaf)          (one byte)
+// + 0x1 + (Leaf)        		(one byte)
 // +-----+
-// +--------------------+
-// + Number of kv pairs +  (two bytes)
-// +--------------------+
+// +---------------------+
+// + Number of cells (n) +  (two bytes)
+// +---------------------+
 // +----------+
-// + Reserved +            (five bytes)
+// + Reserved +          		(five bytes)
 // +----------+
 //
-// (Cell pointer area - all indexes are 2 bytes. There are 2n pointers)
-// (pointers point to the END of the cell. The start of the first cell can be determined from the number of kv pairs)
+// (Cell pointer area - all indexes are 2 bytes. There are n pointers)
+// (pointers point to the END of the cell. The start of the first cell can be determined from the number of cells)
 // +----------+----------+----------+----------+
 // + key1 Len + val1 Len + key2 Len + val2 Len + ...
 // +----------+----------+----------+----------+
@@ -39,7 +39,7 @@ import (
 // ```
 type LeafPage struct {
 	// Header     byte  // Not actually stored in memory, but represented in the struct
-	NumKV uint16
+	NumCells uint16
 	// reserved (5 bytes - not used for now)
 	Pointers []uint16
 	Cells    []Cell
@@ -51,7 +51,7 @@ func (p *LeafPage) MarshalBinary(pageSize int) ([]byte, error) {
 
 	// ---- Write headers ---
 	common.Check(buf.WriteByte(HeaderLeafPage))
-	common.Check(binary.Write(buf, binary.BigEndian, p.NumKV))
+	common.Check(binary.Write(buf, binary.BigEndian, p.NumCells))
 	common.Check(common.WriteExactly(buf, make([]byte, 5))) // reserved bytes
 	// ---- End headers ---
 
@@ -101,18 +101,18 @@ func Decode(pageBytes []byte, pageSize int) (*LeafPage, error) {
 		// TODO other types of pages?
 	}
 	p := LeafPage{}
-	numKV16, err := common.ReadUint16(pb)
+	noofCells16, err := common.ReadUint16(pb)
 	if err != nil {
 		return nil, err
 	}
-	if numKV16 > maxNumKVPerPage(pageSize) {
-		return nil, errPageCorruption("too many kvs", int(maxNumKVPerPage(pageSize)), uint64(numKV16))
+	if noofCells16 > maxNumCellsPerPage(pageSize) {
+		return nil, errPageCorruption("too many kvs", int(maxNumCellsPerPage(pageSize)), uint64(noofCells16))
 	}
-	p.NumKV = numKV16
-	numKV := int(numKV16) // convenience
+	p.NumCells = noofCells16
+	numCells := int(noofCells16) // convenience
 
-	p.Pointers = make([]uint16, 2*numKV)
-	p.Cells = make([]Cell, 2*numKV)
+	p.Pointers = make([]uint16, numCells)
+	p.Cells = make([]Cell, numCells)
 
 	var prev uint16
 	for i := 0; i < len(p.Pointers); i++ {
@@ -188,7 +188,7 @@ const (
 	pageHeaderSize = 8
 )
 
-func maxNumKVPerPage(pageSize int) uint16 {
+func maxNumCellsPerPage(pageSize int) uint16 {
 	// Keys must always have at least 1 byte payload. Values can have zero.
 	// 1 byte payload requires 1 byte varint. So each kv pair must take up at least 2 bytes.
 	// Each pointer to a kv pair takes up 4 bytes. So we have the equation
