@@ -2,6 +2,7 @@ package app
 
 import (
 	"errors"
+	"io"
 	"os"
 
 	"github.com/thomastay/rash-db/pkg/common"
@@ -18,12 +19,22 @@ type Pager struct {
 
 	inUse map[int]map[uint64]bool // list of pages in use
 	// An counter that increments with every request
+	// Don't use zero here! zero is a null value
 	currReqID uint64
+}
+
+func NewPager(pageSize int, file *os.File) *Pager {
+	return &Pager{
+		PageSize:  pageSize,
+		file:      file,
+		inUse:     make(map[int]map[uint64]bool),
+		currReqID: 1,
+	}
 }
 
 func (p *Pager) Request(req PagerRequest) (PagerInfo, error) {
 	if req.ID == 0 {
-		return PagerInfo{}, errors.New("Pager: Page 0 is the null page")
+		return PagerInfo{}, errZeroPage
 	}
 	startOffset := int64(req.ID) * int64(p.PageSize)
 
@@ -55,6 +66,37 @@ func (p *Pager) Request(req PagerRequest) (PagerInfo, error) {
 	return result, nil
 }
 
+func (p *Pager) WritePage(info PagerInfo) error {
+	// Check some basic details
+	if info.ID == 0 {
+		return errZeroPage
+	}
+	if info.Page == nil {
+		return errors.New("Invalid pager write request")
+	}
+
+	// Write page to disk! Lets go
+	startOffset := int64(info.ID) * int64(p.PageSize)
+	pageBytes, err := info.Page.MarshalBinary(p.PageSize)
+	if err != nil {
+		return err
+	}
+	written, err := p.file.WriteAt(pageBytes, startOffset)
+	if err != nil {
+		return err
+	}
+	if written != p.PageSize {
+		// TODO: rollback? How to recover here?
+		return io.ErrShortWrite
+	}
+	if info.reqID != 0 {
+		// This is an existing pagerInfo that came from a read request.
+		// Mark it as read
+		info.Done()
+	}
+	return nil
+}
+
 type PagerInfo struct {
 	// the Page ID
 	ID   int
@@ -72,3 +114,5 @@ type PagerRequest struct {
 	// The ID of the page requested
 	ID int
 }
+
+var errZeroPage = errors.New("Pager: Page 0 is the null page")

@@ -11,9 +11,8 @@ import (
 type LeafNode struct {
 	ID       int
 	PageSize int
-	Data     []TableKeyValue
-	// this is the columns from the headers, but as a map.
-	Columns map[string]disk.DataType
+	// TODO determine - is data sorted on insert? or only on commits?
+	Data    []TableKeyValue
 	Headers *disk.Table
 }
 

@@ -8,7 +8,6 @@ import (
 	"github.com/thomastay/rash-db/pkg/app"
 	"github.com/thomastay/rash-db/pkg/common"
 	"github.com/thomastay/rash-db/pkg/disk"
-	"github.com/thomastay/rash-db/pkg/varint"
 	"github.com/vmihailenco/msgpack/v5"
 )
 
@@ -18,6 +17,7 @@ type DB struct {
 	header disk.Header
 	// lock   sync.Mutex
 	table *tableNode
+	pager *app.Pager
 }
 
 type DBOpenOptions struct {
@@ -43,6 +43,8 @@ func Open(filename string, options *DBOpenOptions) (*DB, error) {
 		} else {
 			db.header.PageSize = uint16(options.PageSize)
 		}
+
+		db.init()
 		return &db, nil
 	}
 	// Else, DB exists. Read from it.
@@ -56,7 +58,14 @@ func Open(filename string, options *DBOpenOptions) (*DB, error) {
 		return nil, err
 	}
 
+	db.init()
 	return &db, nil
+}
+
+// This is to be called to setup in memory data structures,
+// after either the headers have been read from disk, or created.
+func (db *DB) init() {
+	db.pager = app.NewPager(int(db.header.PageSize), db.file)
 }
 
 func (db *DB) CreateTable(
@@ -105,7 +114,7 @@ func (db *DB) Insert(
 			continue
 		}
 
-		if _, ok := table.columns[fieldName]; ok {
+		if _, ok := table.Columns[fieldName]; ok {
 			fieldVal := field.Interface()
 			// TODO check value
 			data.Val[fieldName] = fieldVal
@@ -117,7 +126,7 @@ func (db *DB) Insert(
 		return ErrInsertNoPrimaryKey
 	}
 	// append
-	table.data = append(table.data, data)
+	table.root.Data = append(table.root.Data, data)
 
 	return nil
 }
@@ -133,13 +142,23 @@ func (db *DB) SyncAll() error {
 	if err != nil {
 		return err
 	}
-	// TODO should probably write page by page
-	tblBytes, err := db.table.MarshalBinary(int(db.header.PageSize))
+
+	// TODO change this writing of table headers to write DB pages too
+	tblBytes, err := db.table.MarshalHeaders(int(db.header.PageSize))
 	if err != nil {
 		return err
 	}
 	buf.Write(tblBytes)
 	db.file.Write(buf.Bytes())
+
+	pagerInfo, err := db.table.root.EncodeDataAsPage()
+	if err != nil {
+		return err
+	}
+	err = db.pager.WritePage(pagerInfo)
+	if err != nil {
+		return err
+	}
 	return nil
 }
 
@@ -157,7 +176,6 @@ func (db *DB) createTable(tableName string, tableType interface{}, primaryKey st
 
 	cols := make([]disk.TableColumn, 0)
 	colsMap := make(map[string]disk.DataType)
-	defer func() { table.Columns = cols }()
 
 	typ := reflect.TypeOf(tableType)
 	for _, field := range reflect.VisibleFields(typ) {
@@ -192,8 +210,12 @@ func (db *DB) createTable(tableName string, tableType interface{}, primaryKey st
 	}
 	table.Columns = cols
 	return &tableNode{
+		db:      db,
 		headers: table,
-		columns: colsMap,
+		Columns: colsMap,
+		root: &app.LeafNode{
+			PageSize: int(db.header.PageSize),
+		},
 	}, nil
 }
 
@@ -203,16 +225,13 @@ func (db *DB) createTable(tableName string, tableType interface{}, primaryKey st
 type tableNode struct {
 	// --- Persisted to disk ---
 
+	db      *DB
 	headers disk.Table
-	// data not sorted, sort it lazily? Or maybe not?
-	data []app.TableKeyValue
-
-	// --- Not persisted to disk ---
-	// this is the columns from the headers, but as a map.
-	columns map[string]disk.DataType
+	root    *app.LeafNode
+	Columns map[string]disk.DataType
 }
 
-func (n *tableNode) MarshalBinary(pageSize int) ([]byte, error) {
+func (n *tableNode) MarshalHeaders(pageSize int) ([]byte, error) {
 	var buf bytes.Buffer
 
 	tblHeader := &n.headers
@@ -222,68 +241,5 @@ func (n *tableNode) MarshalBinary(pageSize int) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	// TODO sort data by primary key
-
-	dataPage, err := n.EncodeDataAsPage(pageSize)
-	if err != nil {
-		return nil, err
-	}
-	pageBytes, err := dataPage.MarshalBinary(pageSize)
-	if err != nil {
-		return nil, err
-	}
-	buf.Write(pageBytes)
 	return buf.Bytes(), nil
-}
-
-// Assumption: all data fits on a single page
-func (n *tableNode) EncodeDataAsPage(pageSize int) (*disk.LeafPage, error) {
-	page := disk.LeafPage{}
-	numKV := len(n.data)
-	if numKV > 65536 {
-		panic("TODO: Multi-pages not implemented")
-	}
-	page.NumKV = uint16(numKV)
-
-	cells := make([]disk.Cell, 2*numKV)
-	for i, data := range n.data {
-		// Marshal primary key and vals
-		diskKV, err := app.EncodeKeyValue(&n.headers, &data)
-		if err != nil {
-			return nil, err
-		}
-		keyBytes, valBytes := diskKV.Key, diskKV.Val
-		// TODO feat: overflow pages
-
-		cells[i*2] = disk.Cell{
-			PayloadLen:     uint64(len(keyBytes)),
-			PayloadInitial: keyBytes,
-		}
-		cells[i*2+1] = disk.Cell{
-			PayloadLen:     uint64(len(valBytes)),
-			PayloadInitial: valBytes,
-		}
-	}
-	page.Cells = cells
-
-	// Calculate pointers
-	offsets := make([]uint16, 2*numKV+1)
-	ptr := 10 + 4*numKV
-	// ^^ 8 bytes header, then 2 bytes each for (2n + 1) pointers
-	offsets[0] = uint16(ptr)
-	for i := 1; i < len(offsets); i++ {
-		cell := cells[i-1]
-		ptr += varint.NumBytesNeededToEncode(cell.PayloadLen) + len(cell.PayloadInitial)
-		if cell.OffsetPageID != 0 {
-			ptr += 4
-		}
-		// check for overflow
-		if ptr >= pageSize {
-			panic("TODO feat: multiple pages")
-		}
-		offsets[i] = uint16(ptr)
-	}
-	page.Pointers = offsets
-
-	return &page, nil
 }
