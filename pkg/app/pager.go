@@ -34,11 +34,11 @@ func NewPager(pageSize int, file *os.File) *Pager {
 	}
 }
 
-func (p *Pager) Request(req PagerRequest) (PagerInfo, error) {
-	if req.ID == 0 {
+func (p *Pager) Request(ID int) (PagerInfo, error) {
+	if ID == 0 {
 		return PagerInfo{}, errZeroPage
 	}
-	startOffset := p.pageStart(req.ID)
+	startOffset := p.pageStart(ID)
 	wrappedReader := readerStartingAt{p.file, startOffset}
 	bytes, err := common.ReadExactly(wrappedReader, p.PageSize)
 	if err != nil {
@@ -50,17 +50,17 @@ func (p *Pager) Request(req PagerRequest) (PagerInfo, error) {
 	}
 
 	result := PagerInfo{
-		ID:    req.ID,
+		ID:    ID,
 		Page:  page,
 		pager: p,
 		reqID: p.currReqID,
 	}
-	if reqs, ok := p.inUse[req.ID]; ok {
+	if reqs, ok := p.inUse[ID]; ok {
 		reqs[p.currReqID] = true
 	} else {
 		reqs := make(map[uint64]bool, 1)
 		reqs[p.currReqID] = true
-		p.inUse[req.ID] = reqs
+		p.inUse[ID] = reqs
 	}
 	p.currReqID++
 
@@ -124,11 +124,6 @@ type PagerInfo struct {
 
 func (info *PagerInfo) Done() {
 	delete(info.pager.inUse[info.ID], info.reqID)
-}
-
-type PagerRequest struct {
-	// The ID of the page requested
-	ID int
 }
 
 var errZeroPage = errors.New("Pager: Page 0 is the null page")
