@@ -48,12 +48,11 @@ func (n *LeafNode) EncodeDataAsPage() (PagerInfo, error) {
 	page.Cells = cells
 
 	// Calculate pointers
-	offsets := make([]uint16, 2*numKV+1)
-	ptr := 10 + 4*numKV
-	// ^^ 8 bytes header, then 2 bytes each for (2n + 1) pointers
-	offsets[0] = uint16(ptr)
-	for i := 1; i < len(offsets); i++ {
-		cell := cells[i-1]
+	offsets := make([]uint16, 2*numKV)
+	ptr := 8 + 4*numKV
+	// ^^ 8 bytes header, then 2 bytes each for 2n pointers
+	for i := 0; i < len(offsets); i++ {
+		cell := cells[i]
 		ptr += varint.NumBytesNeededToEncode(cell.PayloadLen) + len(cell.PayloadInitial)
 		if cell.OffsetPageID != 0 {
 			ptr += 4

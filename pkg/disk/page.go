@@ -24,10 +24,11 @@ import (
 // + Reserved +            (five bytes)
 // +----------+
 //
-// (Cell pointer area - all indexes are 2 bytes. There are 2n+1 pointers)
-// +----------+----------+----------+----------+     +---------+
-// + key1 Idx + val1 Idx + key2 Idx + val2 Idx + ... + End Idx +
-// +----------+----------+----------+----------+     +---------+
+// (Cell pointer area - all indexes are 2 bytes. There are 2n pointers)
+// (pointers point to the END of the cell. The start of the first cell can be determined from the number of kv pairs)
+// +----------+----------+----------+----------+
+// + key1 Len + val1 Len + key2 Len + val2 Len + ...
+// +----------+----------+----------+----------+
 //
 // (Cell area - equals signs means variable length fields)
 // +=======+=======+=======+=======+
@@ -108,7 +109,7 @@ func Decode(pageBytes []byte, pageSize int) (*LeafPage, error) {
 	p.NumKV = numKV16
 	numKV := int(numKV16) // convenience
 
-	p.Pointers = make([]uint16, 2*numKV+1)
+	p.Pointers = make([]uint16, 2*numKV)
 	p.Cells = make([]Cell, 2*numKV)
 
 	var prev uint16
@@ -125,9 +126,14 @@ func Decode(pageBytes []byte, pageSize int) (*LeafPage, error) {
 		p.Pointers[i] = ptr
 	}
 
-	for i := 0; i < len(p.Pointers)-1; i++ {
-		curr, next := p.Pointers[i], p.Pointers[i+1]
-		cellSize := int(next) - int(curr)
+	for i := 0; i < len(p.Pointers); i++ {
+		var cellSize int
+		if i == 0 {
+			cellSize = int(p.Pointers[i])
+		} else {
+			prev, curr := p.Pointers[i-1], p.Pointers[i]
+			cellSize = int(curr) - int(prev)
+		}
 		if err != nil {
 			return nil, err
 		}
