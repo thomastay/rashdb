@@ -5,6 +5,7 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
+	"math"
 
 	"github.com/thomastay/rash-db/pkg/common"
 	"github.com/thomastay/rash-db/pkg/varint"
@@ -106,6 +107,9 @@ func Decode(pageBytes []byte, pageSize int) (*LeafPage, error) {
 	if err != nil {
 		return nil, err
 	}
+	if numKV16 > maxNumKVPerPage(pageSize) {
+		return nil, errPageCorruption("too many kvs", int(maxNumKVPerPage(pageSize)), uint64(numKV16))
+	}
 	p.NumKV = numKV16
 	numKV := int(numKV16) // convenience
 
@@ -120,7 +124,7 @@ func Decode(pageBytes []byte, pageSize int) (*LeafPage, error) {
 		}
 		if i > 0 && ptr < prev {
 			// pointers can be the same as the previous, if the cell length is zero
-			return nil, errors.New("Page corruption: Pointers should be non-decreasing")
+			return nil, errPageCorruption("Pointers should be non-decreasing", int(prev), uint64(ptr))
 		}
 		prev = ptr
 		p.Pointers[i] = ptr
@@ -156,7 +160,7 @@ func Decode(pageBytes []byte, pageSize int) (*LeafPage, error) {
 		// Check for page corruption.
 		// Don't cast to int here, which will silently truncate and cause all sorts of weird issues
 		if payloadLen != uint64(cellSize)-uint64(numBytesPayloadLen) {
-			return nil, errors.New("Page corruption: mismatch of pointer length and cell's own length")
+			return nil, errPageCorruption("mismatch of pointer length and cell's own length", cellSize-numBytesPayloadLen, payloadLen)
 		}
 
 		// If there is no corruption and no overflow, payloadLen must fit within a 32 bit int. But let's check just to be safe.
@@ -183,4 +187,18 @@ type Cell struct {
 
 const (
 	HeaderLeafPage = 0x1
+	pageHeaderSize = 8
 )
+
+func maxNumKVPerPage(pageSize int) uint16 {
+	// Keys must always have at least 1 byte payload. Values can have zero.
+	// 1 byte payload requires 1 byte varint. So each kv pair must take up at least 2 bytes.
+	// Each pointer to a kv pair takes up 4 bytes. So we have the equation
+	// 		pageSize <= 8 + 4n + 2n
+	// => n <= (pageSize - 8) / 6
+	return uint16(math.Floor(float64(pageSize-pageHeaderSize) / float64(6)))
+}
+
+func errPageCorruption(s string, expected int, got uint64) error {
+	return errors.New(fmt.Sprintf("Page corruption: %s, expected %d, got %d", s, expected, got))
+}
