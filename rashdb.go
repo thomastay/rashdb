@@ -225,8 +225,6 @@ func (db *DB) createTable(tableName string, tableType interface{}, primaryKey st
 // This is an in-memory representation. On disk, the headers and data
 // are stored in different locations
 type tableNode struct {
-	// --- Persisted to disk ---
-
 	db      *DB
 	headers disk.Table
 	root    *app.LeafNode
