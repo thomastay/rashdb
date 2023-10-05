@@ -22,13 +22,13 @@ type LeafNode struct {
 func (n *LeafNode) EncodeDataAsPage() (PagerInfo, error) {
 	page := disk.LeafPage{}
 	// The number of keys + number of values
-	numKV := 2 * len(n.Data)
-	if numKV > 65536 {
+	numCells := 2 * len(n.Data)
+	if numCells > 65536 {
 		panic("TODO: Multi-pages not implemented")
 	}
-	page.NumCells = uint16(numKV)
+	page.NumCells = uint16(numCells)
 
-	cells := make([]disk.Cell, 2*numKV)
+	cells := make([]disk.Cell, numCells)
 	for i, data := range n.Data {
 		// Marshal primary key and vals
 		diskKV, err := EncodeKeyValue(n.Headers, &data)
@@ -50,8 +50,8 @@ func (n *LeafNode) EncodeDataAsPage() (PagerInfo, error) {
 	page.Cells = cells
 
 	// Calculate pointers
-	offsets := make([]uint16, numKV)
-	ptr := 8 + 2*numKV
+	offsets := make([]uint16, numCells)
+	ptr := 8 + 2*numCells
 	// ^^ 8 bytes header, then 2 bytes each for n pointers
 	for i := 0; i < len(offsets); i++ {
 		cell := cells[i]
