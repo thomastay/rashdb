@@ -38,8 +38,7 @@ func (p *Pager) Request(req PagerRequest) (PagerInfo, error) {
 	if req.ID == 0 {
 		return PagerInfo{}, errZeroPage
 	}
-	startOffset := int64(req.ID) * int64(p.PageSize)
-
+	startOffset := p.pageStart(req.ID)
 	wrappedReader := readerStartingAt{p.file, startOffset}
 	bytes, err := common.ReadExactly(wrappedReader, p.PageSize)
 	if err != nil {
@@ -78,7 +77,7 @@ func (p *Pager) WritePage(info PagerInfo) error {
 	}
 
 	// Write page to disk! Lets go
-	startOffset := int64(info.ID) * int64(p.PageSize)
+	startOffset := p.pageStart(info.ID)
 	pageBytes, err := info.Page.MarshalBinary(p.PageSize)
 	if err != nil {
 		return err
@@ -105,6 +104,13 @@ func (p *Pager) NewFreeLeafPage() PagerInfo {
 	}
 	p.nextFreePageID++
 	return result
+}
+
+func (p *Pager) pageStart(ID int) int64 {
+	if ID == 0 {
+		panic("non zero pages. Check in caller function")
+	}
+	return int64(ID-1) * int64(p.PageSize)
 }
 
 type PagerInfo struct {
