@@ -86,6 +86,12 @@ func EncodeKeyValue(tbl *Table, kv *TableKeyValue) (*KeyValue, error) {
 	}, nil
 }
 
+type KeyValue struct {
+	// Keys and values are stored as opaque structs and decoded as needed
+	Key []byte
+	Val []byte
+}
+
 func colsMapToBytes(
 	columnOrder []TableColumn,
 	cols map[string]interface{},
