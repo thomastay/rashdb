@@ -23,6 +23,13 @@ func (buffer *fixedBytesBuffer) Bytes() []byte {
 	return buffer.buf
 }
 
+func (buffer *fixedBytesBuffer) Skip(n int) {
+	buffer.pos += n
+	if buffer.pos > len(buffer.buf) {
+		buffer.pos = len(buffer.buf)
+	}
+}
+
 // Implement io.Writer
 // Best effort copy
 func (buffer *fixedBytesBuffer) Write(bs []byte) (int, error) {

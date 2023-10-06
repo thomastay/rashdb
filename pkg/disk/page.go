@@ -52,7 +52,7 @@ func (p *LeafPage) MarshalBinary(pageSize int) ([]byte, error) {
 	// ---- Write headers ---
 	common.Check(buf.WriteByte(HeaderLeafPage))
 	common.Check(binary.Write(buf, binary.BigEndian, p.NumCells))
-	common.Check(common.WriteExactly(buf, make([]byte, pageHeaderReservedSize))) // reserved bytes
+	buf.Skip(pageHeaderReservedSize) // reserved bytes
 	// ---- End headers ---
 
 	for _, ptr := range p.Pointers {
@@ -110,8 +110,7 @@ func Decode(pageBytes []byte, pageSize int) (*LeafPage, error) {
 	p.NumCells = noofCells16
 	numCells := int(noofCells16) // convenience
 
-	_, err = pb.Read(make([]byte, pageHeaderReservedSize))
-	common.Check(err)
+	_ = pb.Next(pageHeaderReservedSize) // skip forward
 	// ---- End reading header ----
 
 	p.Pointers = make([]uint16, numCells)
