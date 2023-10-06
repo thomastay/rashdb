@@ -51,12 +51,12 @@ func (p *LeafPage) MarshalBinary(pageSize int) ([]byte, error) {
 
 	// ---- Write headers ---
 	common.Check(buf.WriteByte(HeaderLeafPage))
-	common.Check(binary.Write(buf, binary.BigEndian, p.NumCells))
+	common.Check(binary.Write(buf, dbEndianness, p.NumCells))
 	buf.Skip(pageHeaderReservedSize) // reserved bytes
 	// ---- End headers ---
 
 	for _, ptr := range p.Pointers {
-		err = binary.Write(buf, binary.BigEndian, ptr)
+		err = binary.Write(buf, dbEndianness, ptr)
 		if err != nil {
 			return nil, err
 		}
@@ -72,7 +72,7 @@ func (p *LeafPage) MarshalBinary(pageSize int) ([]byte, error) {
 			return nil, err
 		}
 		if cell.OffsetPageID != 0 {
-			err = binary.Write(buf, binary.BigEndian, cell.OffsetPageID)
+			err = binary.Write(buf, dbEndianness, cell.OffsetPageID)
 			if err != nil {
 				return nil, err
 			}

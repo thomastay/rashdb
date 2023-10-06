@@ -28,22 +28,22 @@ var MagicHeader = [16]byte{
 	'A',
 }
 
-var dbHeaderOrder = binary.BigEndian
+var dbEndianness = binary.BigEndian
 
 func (header *Header) MarshalBinary() (data []byte, err error) {
 	b := NewFixedBytesBuffer(make([]byte, DBHeaderSize))
 
 	if header.Magic[0] == 0 {
 		// use default
-		common.Check(binary.Write(b, dbHeaderOrder, MagicHeader))
+		common.Check(binary.Write(b, dbEndianness, MagicHeader))
 	} else {
-		common.Check(binary.Write(b, dbHeaderOrder, header.Magic))
+		common.Check(binary.Write(b, dbEndianness, header.Magic))
 	}
-	common.Check(binary.Write(b, dbHeaderOrder, header.Version))
+	common.Check(binary.Write(b, dbEndianness, header.Version))
 	if header.PageSize == 0 {
-		common.Check(binary.Write(b, dbHeaderOrder, DefaultDBPageSize))
+		common.Check(binary.Write(b, dbEndianness, DefaultDBPageSize))
 	} else {
-		common.Check(binary.Write(b, dbHeaderOrder, header.PageSize))
+		common.Check(binary.Write(b, dbEndianness, header.PageSize))
 	}
 
 	return b.Bytes(), nil
@@ -51,7 +51,7 @@ func (header *Header) MarshalBinary() (data []byte, err error) {
 
 func (header *Header) UnmarshalBinary(data []byte) error {
 	b := bytes.NewBuffer(data)
-	err := binary.Read(b, dbHeaderOrder, header)
+	err := binary.Read(b, dbEndianness, header)
 	if err != nil {
 		return err
 	}
