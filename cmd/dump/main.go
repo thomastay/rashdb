@@ -37,7 +37,7 @@ func run() error {
 
 	out.StreamObjOpen("")
 	out.StreamObjOpen("Header")
-	out.StreamKV("Magic", string(header.Magic[:]))
+	out.StreamKV("Magic", string(header.Magic[:15]))
 	out.StreamKV("Version", header.Version)
 	out.StreamKV("PageSize", header.PageSize)
 	out.StreamObjClose(true)

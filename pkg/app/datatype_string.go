@@ -15,11 +15,12 @@ func _() {
 	_ = x[DBText-4]
 	_ = x[DBBlob-5]
 	_ = x[DBJsonData-6]
+	_ = x[DBJsonArr-7]
 }
 
-const _DataType_name = "DBStrDBIntDBRealDBNullDBTextDBBlobDBJsonData"
+const _DataType_name = "DBStrDBIntDBRealDBNullDBTextDBBlobDBJsonDataDBJsonArr"
 
-var _DataType_index = [...]uint8{0, 5, 10, 16, 22, 28, 34, 44}
+var _DataType_index = [...]uint8{0, 5, 10, 16, 22, 28, 34, 44, 53}
 
 func (i DataType) String() string {
 	if i >= DataType(len(_DataType_index)-1) {

@@ -199,7 +199,7 @@ func (db *DB) createTable(tableName string, tableType interface{}, primaryKey st
 			case reflect.Uint8:
 				col.Value = app.DBBlob
 			default:
-				return nil, ErrInvalidTableValue
+				col.Value = app.DBJsonArr
 			}
 		case reflect.Map:
 			col.Value = app.DBJsonData
