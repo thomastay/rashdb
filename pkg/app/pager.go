@@ -44,7 +44,7 @@ func (p *Pager) Request(ID int) (PagerInfo, error) {
 	if err != nil {
 		return PagerInfo{}, err
 	}
-	page, err := disk.Decode(bytes, p.PageSize)
+	page, err := disk.Decode(bytes, p.PageSize, ID)
 	if err != nil {
 		return PagerInfo{}, err
 	}
@@ -96,6 +96,12 @@ func (p *Pager) WritePage(info PagerInfo) error {
 		info.Done()
 	}
 	return nil
+}
+
+func (p *Pager) NextFreePageID() (result int) {
+	result = p.nextFreePageID
+	p.nextFreePageID++
+	return
 }
 
 func (p *Pager) NewFreeLeafPage() PagerInfo {

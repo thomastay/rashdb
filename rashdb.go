@@ -1,14 +1,12 @@
 package rashdb
 
 import (
-	"bytes"
 	"os"
 	"reflect"
 
 	"github.com/thomastay/rash-db/pkg/app"
 	"github.com/thomastay/rash-db/pkg/common"
 	"github.com/thomastay/rash-db/pkg/disk"
-	"github.com/vmihailenco/msgpack/v5"
 )
 
 type DB struct {
@@ -133,23 +131,11 @@ func (db *DB) Insert(
 
 // Temp function until we do something better
 func (db *DB) SyncAll() error {
-	var buf bytes.Buffer
-	headerBytes, err := db.header.MarshalBinary()
+	tablePagerInfo, err := db.table.MarshalMetaAsPage()
 	if err != nil {
 		return err
 	}
-	_, err = buf.Write(headerBytes)
-	if err != nil {
-		return err
-	}
-
-	// TODO change this writing of table headers to write DB pages too
-	tblBytes, err := db.table.MarshalMeta(int(db.header.PageSize))
-	if err != nil {
-		return err
-	}
-	buf.Write(tblBytes)
-	_, err = db.file.Write(buf.Bytes())
+	err = db.pager.WritePage(tablePagerInfo)
 	if err != nil {
 		return err
 	}
@@ -170,6 +156,7 @@ func (db *DB) createTable(tableName string, tableType interface{}, primaryKey st
 	meta := app.TableMeta{
 		Name:       tableName,
 		PrimaryKey: make([]app.TableColumn, 1),
+		Root:       db.pager.NextFreePageID(),
 	}
 	// feat: multi primary key
 	meta.PrimaryKey[0] = app.TableColumn{
@@ -216,9 +203,10 @@ func (db *DB) createTable(tableName string, tableType interface{}, primaryKey st
 	meta.Columns = cols
 	return &tableNode{
 		db:      db,
-		meta:    meta,
+		meta:    &meta,
 		columns: colsMap,
 		root: &app.LeafNode{
+			ID:       meta.Root,
 			PageSize: int(db.header.PageSize),
 			Headers:  &meta,
 			Pager:    db.pager,
@@ -231,20 +219,12 @@ func (db *DB) createTable(tableName string, tableType interface{}, primaryKey st
 // are stored in different locations
 type tableNode struct {
 	db      *DB
-	meta    app.TableMeta
+	meta    *app.TableMeta
 	root    *app.LeafNode
 	columns map[string]app.DataType
 }
 
-func (n *tableNode) MarshalMeta(pageSize int) ([]byte, error) {
-	var buf bytes.Buffer
-
-	tblmeta := &n.meta
-	enc := msgpack.NewEncoder(&buf)
-	enc.UseArrayEncodedStructs(true)
-	err := enc.Encode(tblmeta)
-	if err != nil {
-		return nil, err
-	}
-	return buf.Bytes(), nil
+func (n *tableNode) MarshalMetaAsPage() (app.PagerInfo, error) {
+	metaNode := app.NewSchemaPage(n.meta, int(n.db.header.PageSize), n.db.pager, &n.db.header)
+	return metaNode.EncodeDataAsPage()
 }

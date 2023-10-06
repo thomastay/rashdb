@@ -15,7 +15,8 @@ type LeafNode struct {
 	Data    []TableKeyValue
 	Headers *TableMeta
 
-	Pager *Pager
+	Pager     *Pager
+	DBHeaders *disk.Header
 }
 
 // Assumption: all data fits on a single page
@@ -27,6 +28,10 @@ func (n *LeafNode) EncodeDataAsPage() (PagerInfo, error) {
 		panic("TODO: Multi-pages not implemented")
 	}
 	page.NumCells = uint16(numCells)
+	hasDBHeader := n.DBHeaders != nil
+	if hasDBHeader {
+		page.DBHeader = n.DBHeaders
+	}
 
 	cells := make([]disk.Cell, numCells)
 	for i, data := range n.Data {
@@ -53,6 +58,10 @@ func (n *LeafNode) EncodeDataAsPage() (PagerInfo, error) {
 	offsets := make([]uint16, numCells)
 	ptr := 8 + 2*numCells
 	// ^^ 8 bytes header, then 2 bytes each for n pointers
+	if hasDBHeader {
+		ptr += disk.DBHeaderSize
+	}
+
 	for i := 0; i < len(offsets); i++ {
 		cell := cells[i]
 		ptr += varint.NumBytesNeededToEncode(cell.PayloadLen) + len(cell.PayloadInitial)
@@ -67,7 +76,13 @@ func (n *LeafNode) EncodeDataAsPage() (PagerInfo, error) {
 	}
 	page.Pointers = offsets
 
-	newFreeLeafPage := n.Pager.NewFreeLeafPage()
-	newFreeLeafPage.Page = &page
-	return newFreeLeafPage, nil
+	if n.ID == 0 {
+		newFreeLeafPage := n.Pager.NewFreeLeafPage()
+		newFreeLeafPage.Page = &page
+		return newFreeLeafPage, nil
+	}
+	return PagerInfo{
+		ID:   n.ID,
+		Page: &page,
+	}, nil
 }

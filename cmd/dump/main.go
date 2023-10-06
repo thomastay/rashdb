@@ -9,7 +9,6 @@ import (
 
 	"github.com/thomastay/rash-db/pkg/app"
 	"github.com/thomastay/rash-db/pkg/disk"
-	"github.com/vmihailenco/msgpack/v5"
 )
 
 func main() {
@@ -43,7 +42,9 @@ func run() error {
 	out.StreamObjClose(true)
 	out.StreamArrOpen("Tables")
 	out.StreamObjOpen("")
-	table, err := parseTable(buf)
+	pageSize := int(header.PageSize)
+
+	table, err := parseTable(dat, pageSize)
 	if err != nil {
 		return err
 	}
@@ -58,7 +59,7 @@ func run() error {
 	}
 	out.StreamArrClose()
 
-	kvs, err := parseTableData(dat, &table, 2, int(header.PageSize))
+	kvs, err := parseTableData(dat, table, 2, pageSize)
 	if err != nil {
 		return err
 	}
@@ -93,21 +94,23 @@ func parseHeader(buf io.Reader) (disk.Header, error) {
 	return header, nil
 }
 
-func parseTable(buf io.Reader) (app.TableMeta, error) {
-	var tbl app.TableMeta
-	dec := msgpack.NewDecoder(buf)
-	err := dec.Decode(&tbl)
+func parseTable(buf []byte, pageSize int) (*app.TableMeta, error) {
+	page, err := disk.Decode(buf[:pageSize], pageSize, 1)
 	if err != nil {
-		return app.TableMeta{}, err
+		return nil, err
 	}
-	return tbl, nil
+	tables, err := app.DecodeSchemaPage(page)
+	if err != nil {
+		return nil, err
+	}
+	return &tables[0], nil
 }
 
 func parseTableData(buf []byte, tbl *app.TableMeta, pageID int, pageSize int) ([]*app.TableKeyValue, error) {
 	startOffset := (pageID - 1) * pageSize
 
 	pageBytes := buf[startOffset : startOffset+pageSize]
-	page, err := disk.Decode(pageBytes, pageSize)
+	page, err := disk.Decode(pageBytes, pageSize, pageID)
 	if err != nil {
 		return nil, err
 	}

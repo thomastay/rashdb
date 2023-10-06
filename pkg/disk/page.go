@@ -43,11 +43,20 @@ type LeafPage struct {
 	// reserved (5 bytes - not used for now)
 	Pointers []uint16
 	Cells    []Cell
+
+	// only for page #1. Nil for any other page
+	DBHeader *Header
 }
 
 func (p *LeafPage) MarshalBinary(pageSize int) ([]byte, error) {
 	var err error
 	buf := NewFixedBytesBuffer(make([]byte, pageSize))
+	if p.DBHeader != nil {
+		// should only be for the very first page
+		headerBytes, err := p.DBHeader.MarshalBinary()
+		common.Check(err)
+		buf.Write(headerBytes)
+	}
 
 	// ---- Write headers ---
 	common.Check(buf.WriteByte(HeaderLeafPage))
@@ -86,11 +95,16 @@ func (p *LeafPage) MarshalBinary(pageSize int) ([]byte, error) {
 	return buf.Bytes(), nil
 }
 
-func Decode(pageBytes []byte, pageSize int) (*LeafPage, error) {
+func Decode(pageBytes []byte, pageSize int, pageID int) (*LeafPage, error) {
 	if len(pageBytes) != pageSize {
 		panic("Page size and page bytes don't match. This is an application level error")
 	}
 	pb := bytes.NewBuffer(pageBytes)
+	isRootPage := pageID == 1
+	if isRootPage {
+		// header, skip
+		_ = pb.Next(DBHeaderSize)
+	}
 
 	pageType, err := pb.ReadByte()
 	common.Check(err)
@@ -137,6 +151,9 @@ func Decode(pageBytes []byte, pageSize int) (*LeafPage, error) {
 		var cellSize int
 		if i == 0 {
 			prev := pageHeaderSize + 2*int(p.NumCells)
+			if isRootPage {
+				prev += DBHeaderSize
+			}
 			cellSize = int(p.Pointers[i]) - prev
 		} else {
 			prev, curr := p.Pointers[i-1], p.Pointers[i]
