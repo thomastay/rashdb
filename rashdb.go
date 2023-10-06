@@ -188,21 +188,21 @@ func (db *DB) createTable(tableName string, tableType interface{}, primaryKey st
 		case reflect.Bool,
 			reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64,
 			reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
-			col.Value = disk.DBInt
+			col.Value = app.DBInt
 		case reflect.Float32, reflect.Float64:
-			col.Value = disk.DBReal
+			col.Value = app.DBReal
 		case reflect.String:
-			col.Value = disk.DBStr
+			col.Value = app.DBStr
 		case reflect.Slice:
 			elem := field.Type.Elem()
 			switch elem.Kind() {
 			case reflect.Uint8:
-				col.Value = disk.DBBlob
+				col.Value = app.DBBlob
 			default:
 				return nil, ErrInvalidTableValue
 			}
 		case reflect.Map:
-			col.Value = disk.DBJsonData
+			col.Value = app.DBJsonData
 		default:
 			return nil, ErrInvalidTableValue
 		}
@@ -233,7 +233,7 @@ type tableNode struct {
 	db      *DB
 	headers app.Table
 	root    *app.LeafNode
-	Columns map[string]disk.DataType
+	Columns map[string]app.DataType
 }
 
 func (n *tableNode) MarshalHeaders(pageSize int) ([]byte, error) {
