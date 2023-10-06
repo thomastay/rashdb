@@ -52,7 +52,7 @@ func (p *LeafPage) MarshalBinary(pageSize int) ([]byte, error) {
 	// ---- Write headers ---
 	common.Check(buf.WriteByte(HeaderLeafPage))
 	common.Check(binary.Write(buf, binary.BigEndian, p.NumCells))
-	common.Check(common.WriteExactly(buf, make([]byte, 5))) // reserved bytes
+	common.Check(common.WriteExactly(buf, make([]byte, pageHeaderReservedSize))) // reserved bytes
 	// ---- End headers ---
 
 	for _, ptr := range p.Pointers {
@@ -93,9 +93,8 @@ func Decode(pageBytes []byte, pageSize int) (*LeafPage, error) {
 	pb := bytes.NewBuffer(pageBytes)
 
 	pageType, err := pb.ReadByte()
-	if err != nil {
-		panic(err) // no way this can happen since we just checked the size above
-	}
+	common.Check(err)
+
 	if pageType != HeaderLeafPage {
 		return nil, fmt.Errorf("Wrong header value %d", pageType)
 		// TODO other types of pages?
@@ -111,6 +110,10 @@ func Decode(pageBytes []byte, pageSize int) (*LeafPage, error) {
 	p.NumCells = noofCells16
 	numCells := int(noofCells16) // convenience
 
+	_, err = pb.Read(make([]byte, pageHeaderReservedSize))
+	common.Check(err)
+	// ---- End reading header ----
+
 	p.Pointers = make([]uint16, numCells)
 	p.Cells = make([]Cell, numCells)
 
@@ -124,6 +127,9 @@ func Decode(pageBytes []byte, pageSize int) (*LeafPage, error) {
 			// pointers can be the same as the previous, if the cell length is zero
 			return nil, errPageCorruption("Pointers should be non-decreasing", int(prev), uint64(ptr))
 		}
+		if int(ptr) >= pageSize {
+			return nil, errPageCorruption("Pointers should be within the page size", pageSize, uint64(ptr))
+		}
 		prev = ptr
 		p.Pointers[i] = ptr
 	}
@@ -131,7 +137,8 @@ func Decode(pageBytes []byte, pageSize int) (*LeafPage, error) {
 	for i := 0; i < len(p.Pointers); i++ {
 		var cellSize int
 		if i == 0 {
-			cellSize = int(p.Pointers[i])
+			prev := pageHeaderSize + 2*int(p.NumCells)
+			cellSize = int(p.Pointers[i]) - prev
 		} else {
 			prev, curr := p.Pointers[i-1], p.Pointers[i]
 			cellSize = int(curr) - int(prev)
@@ -184,8 +191,9 @@ type Cell struct {
 }
 
 const (
-	HeaderLeafPage = 0x1
-	pageHeaderSize = 8
+	HeaderLeafPage         = 0x1
+	pageHeaderSize         = 8
+	pageHeaderReservedSize = 5
 )
 
 func maxNumCellsPerPage(pageSize int) uint16 {

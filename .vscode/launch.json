@@ -9,7 +9,7 @@
 			"type": "go",
 			"request": "launch",
 			"mode": "auto",
-			"program": "./cmd/dump/main.go",
+			"program": "./cmd/dump/",
 			"args": ["${workspaceFolder}/db.db"]
 		},
 		{

@@ -4,12 +4,12 @@ import (
 	"bufio"
 	"bytes"
 	"errors"
+	"fmt"
 	"io"
 	"os"
 
 	"github.com/thomastay/rash-db/pkg/app"
 	"github.com/thomastay/rash-db/pkg/disk"
-	"github.com/thomastay/rash-db/pkg/varint"
 	"github.com/vmihailenco/msgpack/v5"
 )
 
@@ -40,6 +40,7 @@ func run() error {
 	out.StreamObjOpen("Header")
 	out.StreamKV("Magic", string(header.Magic[:]))
 	out.StreamKV("Version", header.Version)
+	out.StreamKV("PageSize", header.PageSize)
 	out.StreamObjClose(true)
 	out.StreamArrOpen("Tables")
 	out.StreamObjOpen("")
@@ -58,7 +59,7 @@ func run() error {
 	}
 	out.StreamArrClose()
 
-	kvs, err := parseTableData(buf, &table)
+	kvs, err := parseTableData(dat, &table, 2, int(header.PageSize))
 	if err != nil {
 		return err
 	}
@@ -103,22 +104,36 @@ func parseTable(buf io.Reader) (disk.Table, error) {
 	return tbl, nil
 }
 
-func parseTableData(buf *bytes.Buffer, tbl *disk.Table) ([]*app.TableKeyValue, error) {
-	n, err := varint.Decode(buf)
+func parseTableData(buf []byte, tbl *disk.Table, pageID int, pageSize int) ([]*app.TableKeyValue, error) {
+	startOffset := (pageID - 1) * pageSize
+
+	pageBytes := buf[startOffset : startOffset+pageSize]
+	page, err := disk.Decode(pageBytes, pageSize)
 	if err != nil {
 		return nil, err
 	}
-	data := make([]*app.TableKeyValue, n)
-	for i := 0; i < int(n); i++ {
-		diskKV, err := disk.ReadKV(buf)
-		if err != nil {
-			return nil, err
-		}
-		appKV, err := app.DecodeKeyValue(tbl, diskKV)
-		if err != nil {
-			return nil, err
-		}
-		data[i] = appKV
+
+	if page.NumCells%2 == 1 {
+		return nil, fmt.Errorf("Page has odd number of cells, %d", page.NumCells)
 	}
-	return data, nil
+	kvs := make([]*app.TableKeyValue, page.NumCells/2)
+	var key []byte
+	for i, cell := range page.Cells {
+		if i%2 == 0 {
+			// Key
+			key = cell.PayloadInitial // TODO overflow page
+		} else {
+			// Val
+			val := cell.PayloadInitial
+			kv := disk.KeyValue{
+				Key: key,
+				Val: val,
+			}
+			kvs[i/2], err = app.DecodeKeyValue(tbl, &kv)
+			if err != nil {
+				return nil, err
+			}
+		}
+	}
+	return kvs, nil
 }
