@@ -2,12 +2,12 @@ package main
 
 import (
 	"bufio"
-	"bytes"
 	"errors"
 	"io"
 	"os"
 
 	"github.com/thomastay/rash-db/pkg/app"
+	"github.com/thomastay/rash-db/pkg/common"
 	"github.com/thomastay/rash-db/pkg/disk"
 )
 
@@ -20,12 +20,16 @@ func main() {
 
 func run() error {
 	// Dump the contents of the DB to the command line
-	dat, err := os.ReadFile(os.Args[1])
+	filename := os.Args[1]
+	file, err := os.Open(filename)
 	if err != nil {
 		return err
 	}
-	buf := bytes.NewBuffer(dat)
-	header, err := parseHeader(buf)
+	headerBytes, err := common.ReadExactly(file, disk.DBHeaderSize)
+	if err != nil {
+		return err
+	}
+	header, err := parseHeader(headerBytes)
 	if err != nil {
 		return err
 	}
@@ -44,7 +48,7 @@ func run() error {
 	out.StreamObjOpen("")
 	pageSize := int(header.PageSize)
 
-	table, err := parseTable(dat, pageSize)
+	table, err := parseTable(file, pageSize)
 	if err != nil {
 		return err
 	}
@@ -59,7 +63,7 @@ func run() error {
 	}
 	out.StreamArrClose()
 
-	kvs, err := parseTableData(dat, table, 2, pageSize)
+	kvs, err := parseTableData(file, table, 2, pageSize)
 	if err != nil {
 		return err
 	}
@@ -80,22 +84,22 @@ func run() error {
 	return nil
 }
 
-func parseHeader(buf io.Reader) (disk.Header, error) {
-	headerBuf := make([]byte, disk.DBHeaderSize)
-	n, err := buf.Read(headerBuf)
-	if err != nil {
-		return disk.Header{}, err
-	}
-	if n != disk.DBHeaderSize {
+func parseHeader(buf []byte) (disk.Header, error) {
+	if len(buf) != disk.DBHeaderSize {
 		return disk.Header{}, errors.New("too small header")
 	}
 	var header disk.Header
-	header.UnmarshalBinary(headerBuf)
+	header.UnmarshalBinary(buf)
 	return header, nil
 }
 
-func parseTable(buf []byte, pageSize int) (*app.TableMeta, error) {
-	page, err := disk.Decode(buf[:pageSize], pageSize, 1)
+func parseTable(file *os.File, pageSize int) (*app.TableMeta, error) {
+	file.Seek(0, io.SeekStart)
+	buf, err := common.ReadExactly(file, pageSize)
+	if err != nil {
+		return nil, err
+	}
+	page, err := disk.Decode(buf, pageSize, 1)
 	if err != nil {
 		return nil, err
 	}
@@ -106,11 +110,18 @@ func parseTable(buf []byte, pageSize int) (*app.TableMeta, error) {
 	return &tables[0], nil
 }
 
-func parseTableData(buf []byte, tbl *app.TableMeta, pageID int, pageSize int) ([]*app.TableKeyValue, error) {
+func parseTableData(file *os.File, tbl *app.TableMeta, pageID int, pageSize int) ([]*app.TableKeyValue, error) {
 	startOffset := (pageID - 1) * pageSize
 
-	pageBytes := buf[startOffset : startOffset+pageSize]
-	page, err := disk.Decode(pageBytes, pageSize, pageID)
+	buf := make([]byte, pageSize)
+	n, err := file.ReadAt(buf, int64(startOffset))
+	if n != pageSize {
+		return nil, io.ErrUnexpectedEOF
+	}
+	if err != nil {
+		return nil, err
+	}
+	page, err := disk.Decode(buf, pageSize, pageID)
 	if err != nil {
 		return nil, err
 	}
