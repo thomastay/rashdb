@@ -87,7 +87,8 @@ func (p *Pager) WritePage(info PagerInfo) error {
 		return err
 	}
 	if written != p.PageSize {
-		// TODO: rollback? How to recover here?
+		// TODO: rollback? There is no way to recover here!
+		// This will be fixed when we implement MVCC
 		return io.ErrShortWrite
 	}
 	if info.reqID != 0 {
