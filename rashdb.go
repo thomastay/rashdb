@@ -167,22 +167,22 @@ func (db *DB) SyncAll() error {
 
 // Uses reflection to figure out what fields are available on a struct
 func (db *DB) createTable(tableName string, tableType interface{}, primaryKey string) (*tableNode, error) {
-	table := disk.Table{
+	table := app.Table{
 		Name:       tableName,
-		PrimaryKey: make([]disk.TableColumn, 1),
+		PrimaryKey: make([]app.TableColumn, 1),
 	}
 	// feat: multi primary key
-	table.PrimaryKey[0] = disk.TableColumn{
+	table.PrimaryKey[0] = app.TableColumn{
 		Key:   primaryKey,
-		Value: disk.DBStr,
+		Value: app.DBStr,
 	}
 
-	cols := make([]disk.TableColumn, 0)
-	colsMap := make(map[string]disk.DataType)
+	cols := make([]app.TableColumn, 0)
+	colsMap := make(map[string]app.DataType)
 
 	typ := reflect.TypeOf(tableType)
 	for _, field := range reflect.VisibleFields(typ) {
-		col := disk.TableColumn{Key: field.Name}
+		col := app.TableColumn{Key: field.Name}
 
 		switch field.Type.Kind() {
 		case reflect.Bool,
@@ -201,6 +201,8 @@ func (db *DB) createTable(tableName string, tableType interface{}, primaryKey st
 			default:
 				return nil, ErrInvalidTableValue
 			}
+		case reflect.Map:
+			col.Value = disk.DBJsonData
 		default:
 			return nil, ErrInvalidTableValue
 		}
@@ -229,7 +231,7 @@ func (db *DB) createTable(tableName string, tableType interface{}, primaryKey st
 // are stored in different locations
 type tableNode struct {
 	db      *DB
-	headers disk.Table
+	headers app.Table
 	root    *app.LeafNode
 	Columns map[string]disk.DataType
 }

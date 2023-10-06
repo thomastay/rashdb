@@ -93,17 +93,17 @@ func parseHeader(buf io.Reader) (disk.Header, error) {
 	return header, nil
 }
 
-func parseTable(buf io.Reader) (disk.Table, error) {
-	var tbl disk.Table
+func parseTable(buf io.Reader) (app.Table, error) {
+	var tbl app.Table
 	dec := msgpack.NewDecoder(buf)
 	err := dec.Decode(&tbl)
 	if err != nil {
-		return disk.Table{}, err
+		return app.Table{}, err
 	}
 	return tbl, nil
 }
 
-func parseTableData(buf []byte, tbl *disk.Table, pageID int, pageSize int) ([]*app.TableKeyValue, error) {
+func parseTableData(buf []byte, tbl *app.Table, pageID int, pageSize int) ([]*app.TableKeyValue, error) {
 	startOffset := (pageID - 1) * pageSize
 
 	pageBytes := buf[startOffset : startOffset+pageSize]

@@ -11,7 +11,7 @@ import (
 	"github.com/vmihailenco/msgpack/v5"
 )
 
-func DecodeKeyValue(tbl *disk.Table, kv *disk.KeyValue) (*TableKeyValue, error) {
+func DecodeKeyValue(tbl *Table, kv *KeyValue) (*TableKeyValue, error) {
 	result := TableKeyValue{
 		Key: make(map[string]interface{}),
 		Val: make(map[string]interface{}),
@@ -43,7 +43,7 @@ func DecodeKeyValue(tbl *disk.Table, kv *disk.KeyValue) (*TableKeyValue, error) 
 	return &result, nil
 }
 
-func DecodeKeyValuesOnPage(tbl *disk.Table, page *disk.LeafPage) ([]*TableKeyValue, error) {
+func DecodeKeyValuesOnPage(tbl *Table, page *disk.LeafPage) ([]*TableKeyValue, error) {
 	if page.NumCells%2 == 1 {
 		return nil, fmt.Errorf("Page has odd number of cells, %d", page.NumCells)
 	}
@@ -57,7 +57,7 @@ func DecodeKeyValuesOnPage(tbl *disk.Table, page *disk.LeafPage) ([]*TableKeyVal
 		} else {
 			// Val
 			val := cell.PayloadInitial
-			kv := disk.KeyValue{
+			kv := KeyValue{
 				Key: key,
 				Val: val,
 			}
@@ -70,7 +70,7 @@ func DecodeKeyValuesOnPage(tbl *disk.Table, page *disk.LeafPage) ([]*TableKeyVal
 	return kvs, nil
 }
 
-func EncodeKeyValue(tbl *disk.Table, kv *TableKeyValue) (*disk.KeyValue, error) {
+func EncodeKeyValue(tbl *Table, kv *TableKeyValue) (*KeyValue, error) {
 	// Marshal primary key and vals
 	keyBytes, err := colsMapToBytes(tbl.PrimaryKey, kv.Key)
 	if err != nil {
@@ -80,14 +80,14 @@ func EncodeKeyValue(tbl *disk.Table, kv *TableKeyValue) (*disk.KeyValue, error) 
 	if err != nil {
 		return nil, err
 	}
-	return &disk.KeyValue{
+	return &KeyValue{
 		Key: keyBytes,
 		Val: valBytes,
 	}, nil
 }
 
 func colsMapToBytes(
-	columnOrder []disk.TableColumn,
+	columnOrder []TableColumn,
 	cols map[string]interface{},
 ) ([]byte, error) {
 	var buf bytes.Buffer

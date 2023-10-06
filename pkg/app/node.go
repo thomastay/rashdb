@@ -13,7 +13,7 @@ type LeafNode struct {
 	PageSize int
 	// TODO determine - is data sorted on insert? or only on commits?
 	Data    []TableKeyValue
-	Headers *disk.Table
+	Headers *Table
 
 	Pager *Pager
 }
