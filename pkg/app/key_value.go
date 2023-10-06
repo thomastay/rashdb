@@ -11,7 +11,7 @@ import (
 	"github.com/vmihailenco/msgpack/v5"
 )
 
-func DecodeKeyValue(tbl *Table, kv *KeyValue) (*TableKeyValue, error) {
+func DecodeKeyValue(tbl *TableMeta, kv *KeyValue) (*TableKeyValue, error) {
 	result := TableKeyValue{
 		Key: make(map[string]interface{}),
 		Val: make(map[string]interface{}),
@@ -43,7 +43,7 @@ func DecodeKeyValue(tbl *Table, kv *KeyValue) (*TableKeyValue, error) {
 	return &result, nil
 }
 
-func DecodeKeyValuesOnPage(tbl *Table, page *disk.LeafPage) ([]*TableKeyValue, error) {
+func DecodeKeyValuesOnPage(tbl *TableMeta, page *disk.LeafPage) ([]*TableKeyValue, error) {
 	if page.NumCells%2 == 1 {
 		return nil, fmt.Errorf("Page has odd number of cells, %d", page.NumCells)
 	}
@@ -70,7 +70,7 @@ func DecodeKeyValuesOnPage(tbl *Table, page *disk.LeafPage) ([]*TableKeyValue, e
 	return kvs, nil
 }
 
-func EncodeKeyValue(tbl *Table, kv *TableKeyValue) (*KeyValue, error) {
+func EncodeKeyValue(tbl *TableMeta, kv *TableKeyValue) (*KeyValue, error) {
 	// Marshal primary key and vals
 	keyBytes, err := colsMapToBytes(tbl.PrimaryKey, kv.Key)
 	if err != nil {

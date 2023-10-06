@@ -87,7 +87,7 @@ func (db *DB) Insert(
 	tableName string,
 	val interface{},
 ) error {
-	if db.table.headers.Name != tableName {
+	if db.table.meta.Name != tableName {
 		return ErrUnknownTableName
 	}
 	table := db.table
@@ -108,13 +108,13 @@ func (db *DB) Insert(
 		field := v.Field(i)
 		fieldName := typ.Field(i).Name
 		// feat: multi primary key
-		if fieldName == table.headers.PrimaryKey[0].Key {
+		if fieldName == table.meta.PrimaryKey[0].Key {
 			data.Key[fieldName] = field.Interface()
 			foundPrimary = true
 			continue
 		}
 
-		if _, ok := table.Columns[fieldName]; ok {
+		if _, ok := table.columns[fieldName]; ok {
 			fieldVal := field.Interface()
 			// TODO check value
 			data.Val[fieldName] = fieldVal
@@ -144,7 +144,7 @@ func (db *DB) SyncAll() error {
 	}
 
 	// TODO change this writing of table headers to write DB pages too
-	tblBytes, err := db.table.MarshalHeaders(int(db.header.PageSize))
+	tblBytes, err := db.table.MarshalMeta(int(db.header.PageSize))
 	if err != nil {
 		return err
 	}
@@ -167,12 +167,12 @@ func (db *DB) SyncAll() error {
 
 // Uses reflection to figure out what fields are available on a struct
 func (db *DB) createTable(tableName string, tableType interface{}, primaryKey string) (*tableNode, error) {
-	table := app.Table{
+	meta := app.TableMeta{
 		Name:       tableName,
 		PrimaryKey: make([]app.TableColumn, 1),
 	}
 	// feat: multi primary key
-	table.PrimaryKey[0] = app.TableColumn{
+	meta.PrimaryKey[0] = app.TableColumn{
 		Key:   primaryKey,
 		Value: app.DBStr,
 	}
@@ -213,14 +213,14 @@ func (db *DB) createTable(tableName string, tableType interface{}, primaryKey st
 			colsMap[col.Key] = col.Value
 		}
 	}
-	table.Columns = cols
+	meta.Columns = cols
 	return &tableNode{
 		db:      db,
-		headers: table,
-		Columns: colsMap,
+		meta:    meta,
+		columns: colsMap,
 		root: &app.LeafNode{
 			PageSize: int(db.header.PageSize),
-			Headers:  &table,
+			Headers:  &meta,
 			Pager:    db.pager,
 		},
 	}, nil
@@ -231,18 +231,18 @@ func (db *DB) createTable(tableName string, tableType interface{}, primaryKey st
 // are stored in different locations
 type tableNode struct {
 	db      *DB
-	headers app.Table
+	meta    app.TableMeta
 	root    *app.LeafNode
-	Columns map[string]app.DataType
+	columns map[string]app.DataType
 }
 
-func (n *tableNode) MarshalHeaders(pageSize int) ([]byte, error) {
+func (n *tableNode) MarshalMeta(pageSize int) ([]byte, error) {
 	var buf bytes.Buffer
 
-	tblHeader := &n.headers
+	tblmeta := &n.meta
 	enc := msgpack.NewEncoder(&buf)
 	enc.UseArrayEncodedStructs(true)
-	err := enc.Encode(tblHeader)
+	err := enc.Encode(tblmeta)
 	if err != nil {
 		return nil, err
 	}
