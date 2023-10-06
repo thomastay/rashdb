@@ -148,7 +148,7 @@ func (db *DB) SyncAll() error {
 	if err != nil {
 		return err
 	}
-	return nil
+	return db.file.Sync()
 }
 
 // Uses reflection to figure out what fields are available on a struct
