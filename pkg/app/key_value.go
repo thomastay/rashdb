@@ -43,6 +43,33 @@ func DecodeKeyValue(tbl *disk.Table, kv *disk.KeyValue) (*TableKeyValue, error) 
 	return &result, nil
 }
 
+func DecodeKeyValuesOnPage(tbl *disk.Table, page *disk.LeafPage) ([]*TableKeyValue, error) {
+	if page.NumCells%2 == 1 {
+		return nil, fmt.Errorf("Page has odd number of cells, %d", page.NumCells)
+	}
+	kvs := make([]*TableKeyValue, page.NumCells/2)
+	var key []byte
+	var err error
+	for i, cell := range page.Cells {
+		if i%2 == 0 {
+			// Key
+			key = cell.PayloadInitial // TODO overflow page
+		} else {
+			// Val
+			val := cell.PayloadInitial
+			kv := disk.KeyValue{
+				Key: key,
+				Val: val,
+			}
+			kvs[i/2], err = DecodeKeyValue(tbl, &kv)
+			if err != nil {
+				return nil, err
+			}
+		}
+	}
+	return kvs, nil
+}
+
 func EncodeKeyValue(tbl *disk.Table, kv *TableKeyValue) (*disk.KeyValue, error) {
 	// Marshal primary key and vals
 	keyBytes, err := colsMapToBytes(tbl.PrimaryKey, kv.Key)

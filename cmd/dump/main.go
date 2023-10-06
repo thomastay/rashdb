@@ -4,7 +4,6 @@ import (
 	"bufio"
 	"bytes"
 	"errors"
-	"fmt"
 	"io"
 	"os"
 
@@ -112,28 +111,5 @@ func parseTableData(buf []byte, tbl *disk.Table, pageID int, pageSize int) ([]*a
 	if err != nil {
 		return nil, err
 	}
-
-	if page.NumCells%2 == 1 {
-		return nil, fmt.Errorf("Page has odd number of cells, %d", page.NumCells)
-	}
-	kvs := make([]*app.TableKeyValue, page.NumCells/2)
-	var key []byte
-	for i, cell := range page.Cells {
-		if i%2 == 0 {
-			// Key
-			key = cell.PayloadInitial // TODO overflow page
-		} else {
-			// Val
-			val := cell.PayloadInitial
-			kv := disk.KeyValue{
-				Key: key,
-				Val: val,
-			}
-			kvs[i/2], err = app.DecodeKeyValue(tbl, &kv)
-			if err != nil {
-				return nil, err
-			}
-		}
-	}
-	return kvs, nil
+	return app.DecodeKeyValuesOnPage(tbl, page)
 }
