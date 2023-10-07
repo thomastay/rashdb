@@ -96,7 +96,7 @@ func DecodeSchemaPage(page *disk.LeafPage) ([]TableMeta, error) {
 	tables := make([]TableMeta, len(kvs))
 	for i, kv := range kvs {
 		tables[i].Name = kv.Key["name"].(string)
-		tables[i].Root = int(kv.Val["root"].(int8))
+		tables[i].Root = int(kv.Val["root"].(int64))
 		tables[i].PrimaryKey = toTableColumns(kv.Val["primary_key"])
 		tables[i].Columns = toTableColumns(kv.Val["columns"])
 	}
@@ -113,7 +113,7 @@ func toTableColumns(encoded interface{}) []TableColumn {
 			panic("Invalid TableColumn pair")
 		}
 		key := i2[0].(string)
-		val := i2[1].(int8)
+		val := i2[1].(uint64)
 		result[i].Key = key
 		result[i].Value = DataType(val)
 	}

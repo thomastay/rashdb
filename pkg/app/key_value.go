@@ -28,8 +28,9 @@ func DecodeKeyValue(tbl *TableMeta, kv *KeyValue) (*TableKeyValue, error) {
 	cols := tbl.Columns
 	valBuf := bytes.NewBuffer(kv.Val)
 	decoder := msgpack.NewDecoder(valBuf)
+	decoder.UseLooseInterfaceDecoding(true)
 	for i := 0; i < len(cols); i++ {
-		valData, err := decoder.DecodeInterface()
+		valData, err := decoder.DecodeInterfaceLoose()
 		if err != nil {
 			if err == io.EOF {
 				return nil, io.ErrUnexpectedEOF
@@ -99,6 +100,7 @@ func colsMapToBytes(
 	var buf bytes.Buffer
 	// TODO use the msgpack pool to speed things up
 	enc := msgpack.NewEncoder(&buf)
+	enc.SetPreserveSign(true)
 	for _, colType := range columnOrder {
 		name := colType.Key
 		if val, ok := cols[name]; ok {
