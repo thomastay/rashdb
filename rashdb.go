@@ -131,6 +131,15 @@ func (db *DB) Insert(
 
 // Temp function until we do something better
 func (db *DB) SyncAll() error {
+	pagerInfo, err := db.table.root.EncodeDataAsPage()
+	if err != nil {
+		return err
+	}
+	err = db.pager.WritePage(pagerInfo)
+	if err != nil {
+		return err
+	}
+
 	tablePagerInfo, err := db.table.MarshalMetaAsPage()
 	if err != nil {
 		return err
@@ -140,14 +149,6 @@ func (db *DB) SyncAll() error {
 		return err
 	}
 
-	pagerInfo, err := db.table.root.EncodeDataAsPage()
-	if err != nil {
-		return err
-	}
-	err = db.pager.WritePage(pagerInfo)
-	if err != nil {
-		return err
-	}
 	return db.file.Sync()
 }
 

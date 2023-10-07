@@ -43,6 +43,7 @@ func run() error {
 	out.StreamKV("Magic", string(header.Magic[:15]))
 	out.StreamKV("Version", header.Version)
 	out.StreamKV("PageSize", header.PageSize)
+	out.StreamKV("NumPages", header.NumPages)
 	out.StreamObjClose(true)
 	out.StreamArrOpen("Tables")
 	out.StreamObjOpen("")

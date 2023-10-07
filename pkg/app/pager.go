@@ -76,6 +76,11 @@ func (p *Pager) WritePage(info PagerInfo) error {
 		return errors.New("Invalid pager write request")
 	}
 
+	if info.ID == 1 {
+		// Special case the DB header page
+		info.Page.DBHeader.NumPages = uint32(p.DBSize())
+	}
+
 	// Write page to disk! Lets go
 	startOffset := p.pageStart(info.ID)
 	pageBytes, err := info.Page.MarshalBinary(p.PageSize)
@@ -97,6 +102,11 @@ func (p *Pager) WritePage(info PagerInfo) error {
 		info.Done()
 	}
 	return nil
+}
+
+func (p *Pager) DBSize() (result int) {
+	result = p.nextFreePageID - 1 // page 0 doesn't exist
+	return
 }
 
 func (p *Pager) NextFreePageID() (result int) {

@@ -17,6 +17,7 @@ type Header struct {
 	Magic    [16]byte
 	Version  uint32
 	PageSize uint16
+	NumPages uint32
 }
 
 const DBHeaderSize = 128
@@ -45,6 +46,7 @@ func (header *Header) MarshalBinary() (data []byte, err error) {
 	} else {
 		common.Check(binary.Write(b, dbEndianness, header.PageSize))
 	}
+	common.Check(binary.Write(b, dbEndianness, header.NumPages))
 
 	return b.Bytes(), nil
 }

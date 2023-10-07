@@ -78,6 +78,7 @@ var schemaTable = TableMeta{
 
 func NewSchemaPage(meta *TableMeta, pageSize int, pager *Pager, dbHeaders *disk.Header) *LeafNode {
 	row := meta.EncodeAsSchemaRow()
+
 	return &LeafNode{
 		ID:        1, // Always has page 1
 		PageSize:  pageSize,
