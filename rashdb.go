@@ -14,8 +14,10 @@ type DB struct {
 	file   *os.File
 	header disk.Header
 	// lock   sync.Mutex
-	table *tableNode
-	pager *app.Pager
+
+	// Cache of recently created / updated tables.
+	tables map[string]*tableNode
+	pager  *app.Pager
 }
 
 type DBOpenOptions struct {
@@ -64,6 +66,7 @@ func Open(filename string, options *DBOpenOptions) (*DB, error) {
 // after either the headers have been read from disk, or created.
 func (db *DB) init() {
 	db.pager = app.NewPager(int(db.header.PageSize), db.file)
+	db.tables = make(map[string]*tableNode)
 }
 
 func (db *DB) CreateTable(
@@ -75,20 +78,75 @@ func (db *DB) CreateTable(
 	if err != nil {
 		return err
 	}
-	// TODO more tables
-	db.table = tbl
-
+	db.tables[tableName] = tbl
 	return nil
+}
+
+// Looks the table up from table cache or disk. Returns nil if it cannot find it.
+func (db *DB) lookupTable(
+	tableName string,
+) (*tableNode, error) {
+	if tbl, ok := db.tables[tableName]; ok {
+		return tbl, nil
+	}
+	// if not, find it from the on-disk meta table
+	// this must be an already created database
+	pagerInfo, err := db.pager.Request(app.DBMetaPageID)
+	if err != nil {
+		return nil, err
+	}
+	defer pagerInfo.Done()
+	metas, err := app.DecodeSchemaPage(pagerInfo.Page)
+	if err != nil {
+		return nil, err
+	}
+	for _, meta := range metas {
+		meta := meta
+		// TODO only find the data that you need. This is too much data
+		// The app layer needs to implement a function to find a value by key and return it
+		// Then the app layer can pass a functor to the
+		if meta.Name != tableName {
+			continue
+		}
+		tblNode := tableNode{
+			db:   db,
+			meta: &meta,
+		}
+		// generate the columns array
+		colsMap := make(map[string]app.DataType)
+		for _, col := range meta.Columns {
+			colsMap[col.Key] = col.Value
+		}
+		tblNode.columns = colsMap
+		// deserialize data root page
+		rootPage, err := db.pager.Request(meta.Root)
+		if err != nil {
+			return nil, err
+		}
+		defer rootPage.Done()
+		tblNode.root = &app.LeafNode{
+			ID:       meta.Root,
+			PageSize: int(db.header.PageSize),
+			Data:     make([]app.TableKeyValue, 0),
+			Headers:  &meta,
+			Pager:    db.pager,
+		}
+		return &tblNode, nil
+	}
+	return nil, nil
 }
 
 func (db *DB) Insert(
 	tableName string,
 	val interface{},
 ) error {
-	if db.table.meta.Name != tableName {
+	table, err := db.lookupTable(tableName)
+	if table == nil {
 		return ErrUnknownTableName
 	}
-	table := db.table
+	if err != nil {
+		return err
+	}
 
 	// Iterate over the fields of the val struct, verifying that
 	// 1. the primary key exists
@@ -131,7 +189,7 @@ func (db *DB) Insert(
 
 // Temp function until we do something better
 func (db *DB) SyncAll() error {
-	pagerInfo, err := db.table.root.EncodeDataAsPage()
+	pagerInfo, err := db.tables["Bars"].root.EncodeDataAsPage()
 	if err != nil {
 		return err
 	}
@@ -140,7 +198,7 @@ func (db *DB) SyncAll() error {
 		return err
 	}
 
-	tablePagerInfo, err := db.table.MarshalMetaAsPage()
+	tablePagerInfo, err := db.tables["Bars"].MarshalMetaAsPage()
 	if err != nil {
 		return err
 	}

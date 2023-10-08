@@ -76,6 +76,8 @@ var schemaTable = TableMeta{
 	},
 }
 
+const DBMetaPageID = 1
+
 func NewSchemaPage(meta *TableMeta, pageSize int, pager *Pager, dbHeaders *disk.Header) *LeafNode {
 	row := meta.EncodeAsSchemaRow()
 
