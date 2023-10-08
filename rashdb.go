@@ -198,7 +198,7 @@ func (db *DB) SyncAll() error {
 		return err
 	}
 
-	tablePagerInfo, err := db.tables["Bars"].MarshalSchemaAsPage()
+	tablePagerInfo, err := db.marshalSchemaAsPage()
 	if err != nil {
 		return err
 	}
@@ -208,6 +208,15 @@ func (db *DB) SyncAll() error {
 	}
 
 	return db.file.Sync()
+}
+
+func (db *DB) marshalSchemaAsPage() (app.PagerInfo, error) {
+	schemas := make([]*app.TableSchema, 0, len(db.tables))
+	for _, tbl := range db.tables {
+		schemas = append(schemas, tbl.schema)
+	}
+	node := app.NewSchemaPage(schemas, int(db.header.PageSize), db.pager, &db.header)
+	return node.EncodeDataAsPage()
 }
 
 // Uses reflection to figure out what fields are available on a struct
@@ -281,9 +290,4 @@ type tableNode struct {
 	schema  *app.TableSchema
 	root    *app.LeafNode
 	columns map[string]app.DataType
-}
-
-func (n *tableNode) MarshalSchemaAsPage() (app.PagerInfo, error) {
-	schemaNode := app.NewSchemaPage(n.schema, int(n.db.header.PageSize), n.db.pager, &n.db.header)
-	return schemaNode.EncodeDataAsPage()
 }

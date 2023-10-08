@@ -15,8 +15,8 @@ type TableSchema struct {
 	Columns []TableColumn
 }
 
-func (m *TableSchema) EncodeAsSchemaRow() *TableKeyValue {
-	return &TableKeyValue{
+func (m *TableSchema) EncodeAsSchemaRow() TableKeyValue {
+	return TableKeyValue{
 		Key: map[string]interface{}{
 			"name": m.Name,
 		},
@@ -78,13 +78,16 @@ var schemaTable = TableSchema{
 
 const DBSchemaPageID = 1
 
-func NewSchemaPage(schema *TableSchema, pageSize int, pager *Pager, dbHeaders *disk.Header) *LeafNode {
-	row := schema.EncodeAsSchemaRow()
+func NewSchemaPage(schemas []*TableSchema, pageSize int, pager *Pager, dbHeaders *disk.Header) *LeafNode {
+	rows := make([]TableKeyValue, len(schemas))
+	for i, schema := range schemas {
+		rows[i] = schema.EncodeAsSchemaRow()
+	}
 
 	return &LeafNode{
-		ID:        1, // Always has page 1
+		ID:        DBSchemaPageID,
 		PageSize:  pageSize,
-		Data:      []TableKeyValue{*row},
+		Data:      rows,
 		Headers:   &schemaTable,
 		Pager:     pager,
 		DBHeaders: dbHeaders,
