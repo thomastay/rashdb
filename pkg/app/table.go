@@ -7,7 +7,7 @@ import (
 
 // Represents a table's columns, so we know what data goes into them.
 // These are encoded into arrays and serialized as messagepack objects for simplicity
-type TableMeta struct {
+type TableSchema struct {
 	Name       string
 	Root       int
 	PrimaryKey []TableColumn
@@ -15,7 +15,7 @@ type TableMeta struct {
 	Columns []TableColumn
 }
 
-func (m *TableMeta) EncodeAsSchemaRow() *TableKeyValue {
+func (m *TableSchema) EncodeAsSchemaRow() *TableKeyValue {
 	return &TableKeyValue{
 		Key: map[string]interface{}{
 			"name": m.Name,
@@ -61,10 +61,10 @@ func (c *TableColumn) DecodeMsgpack(dec *msgpack.Decoder) error {
 }
 
 // This is the "header" of the schema table
-// The rows of the schema table are the metadata of the tables themselves.
+// The rows of the schema table are the schemas of the tables themselves.
 // The schema table is always at page 1
 // This schema is an implementation detail and should not be exposed to consumers
-var schemaTable = TableMeta{
+var schemaTable = TableSchema{
 	Name: "rashdb_schema",
 	PrimaryKey: []TableColumn{
 		{"name", DBStr},
@@ -76,10 +76,10 @@ var schemaTable = TableMeta{
 	},
 }
 
-const DBMetaPageID = 1
+const DBSchemaPageID = 1
 
-func NewSchemaPage(meta *TableMeta, pageSize int, pager *Pager, dbHeaders *disk.Header) *LeafNode {
-	row := meta.EncodeAsSchemaRow()
+func NewSchemaPage(schema *TableSchema, pageSize int, pager *Pager, dbHeaders *disk.Header) *LeafNode {
+	row := schema.EncodeAsSchemaRow()
 
 	return &LeafNode{
 		ID:        1, // Always has page 1
@@ -91,12 +91,12 @@ func NewSchemaPage(meta *TableMeta, pageSize int, pager *Pager, dbHeaders *disk.
 	}
 }
 
-func DecodeSchemaPage(page *disk.LeafPage) ([]TableMeta, error) {
+func DecodeSchemaPage(page *disk.LeafPage) ([]TableSchema, error) {
 	kvs, err := DecodeKeyValuesOnPage(&schemaTable, page)
 	if err != nil {
 		return nil, err
 	}
-	tables := make([]TableMeta, len(kvs))
+	tables := make([]TableSchema, len(kvs))
 	for i, kv := range kvs {
 		tables[i].Name = kv.Key["name"].(string)
 		tables[i].Root = int(kv.Val["root"].(int64))

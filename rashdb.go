@@ -89,46 +89,46 @@ func (db *DB) lookupTable(
 	if tbl, ok := db.tables[tableName]; ok {
 		return tbl, nil
 	}
-	// if not, find it from the on-disk meta table
+	// if not, find it from the on-disk schema table
 	// this must be an already created database
-	pagerInfo, err := db.pager.Request(app.DBMetaPageID)
+	pagerInfo, err := db.pager.Request(app.DBSchemaPageID)
 	if err != nil {
 		return nil, err
 	}
 	defer pagerInfo.Done()
-	metas, err := app.DecodeSchemaPage(pagerInfo.Page)
+	schemas, err := app.DecodeSchemaPage(pagerInfo.Page)
 	if err != nil {
 		return nil, err
 	}
-	for _, meta := range metas {
-		meta := meta
+	for _, schema := range schemas {
+		schema := schema
 		// TODO only find the data that you need. This is too much data
 		// The app layer needs to implement a function to find a value by key and return it
 		// Then the app layer can pass a functor to the
-		if meta.Name != tableName {
+		if schema.Name != tableName {
 			continue
 		}
 		tblNode := tableNode{
-			db:   db,
-			meta: &meta,
+			db:     db,
+			schema: &schema,
 		}
 		// generate the columns array
 		colsMap := make(map[string]app.DataType)
-		for _, col := range meta.Columns {
+		for _, col := range schema.Columns {
 			colsMap[col.Key] = col.Value
 		}
 		tblNode.columns = colsMap
 		// deserialize data root page
-		rootPage, err := db.pager.Request(meta.Root)
+		rootPage, err := db.pager.Request(schema.Root)
 		if err != nil {
 			return nil, err
 		}
 		defer rootPage.Done()
 		tblNode.root = &app.LeafNode{
-			ID:       meta.Root,
+			ID:       schema.Root,
 			PageSize: int(db.header.PageSize),
 			Data:     make([]app.TableKeyValue, 0),
-			Headers:  &meta,
+			Headers:  &schema,
 			Pager:    db.pager,
 		}
 		return &tblNode, nil
@@ -164,7 +164,7 @@ func (db *DB) Insert(
 		field := v.Field(i)
 		fieldName := typ.Field(i).Name
 		// feat: multi primary key
-		if fieldName == table.meta.PrimaryKey[0].Key {
+		if fieldName == table.schema.PrimaryKey[0].Key {
 			data.Key[fieldName] = field.Interface()
 			foundPrimary = true
 			continue
@@ -198,7 +198,7 @@ func (db *DB) SyncAll() error {
 		return err
 	}
 
-	tablePagerInfo, err := db.tables["Bars"].MarshalMetaAsPage()
+	tablePagerInfo, err := db.tables["Bars"].MarshalSchemaAsPage()
 	if err != nil {
 		return err
 	}
@@ -212,13 +212,13 @@ func (db *DB) SyncAll() error {
 
 // Uses reflection to figure out what fields are available on a struct
 func (db *DB) createTable(tableName string, tableType interface{}, primaryKey string) (*tableNode, error) {
-	meta := app.TableMeta{
+	schema := app.TableSchema{
 		Name:       tableName,
 		PrimaryKey: make([]app.TableColumn, 1),
 		Root:       db.pager.NextFreePageID(),
 	}
 	// feat: multi primary key
-	meta.PrimaryKey[0] = app.TableColumn{
+	schema.PrimaryKey[0] = app.TableColumn{
 		Key:   primaryKey,
 		Value: app.DBStr,
 	}
@@ -259,15 +259,15 @@ func (db *DB) createTable(tableName string, tableType interface{}, primaryKey st
 			colsMap[col.Key] = col.Value
 		}
 	}
-	meta.Columns = cols
+	schema.Columns = cols
 	return &tableNode{
 		db:      db,
-		meta:    &meta,
+		schema:  &schema,
 		columns: colsMap,
 		root: &app.LeafNode{
-			ID:       meta.Root,
+			ID:       schema.Root,
 			PageSize: int(db.header.PageSize),
-			Headers:  &meta,
+			Headers:  &schema,
 			Pager:    db.pager,
 		},
 	}, nil
@@ -278,12 +278,12 @@ func (db *DB) createTable(tableName string, tableType interface{}, primaryKey st
 // are stored in different locations
 type tableNode struct {
 	db      *DB
-	meta    *app.TableMeta
+	schema  *app.TableSchema
 	root    *app.LeafNode
 	columns map[string]app.DataType
 }
 
-func (n *tableNode) MarshalMetaAsPage() (app.PagerInfo, error) {
-	metaNode := app.NewSchemaPage(n.meta, int(n.db.header.PageSize), n.db.pager, &n.db.header)
-	return metaNode.EncodeDataAsPage()
+func (n *tableNode) MarshalSchemaAsPage() (app.PagerInfo, error) {
+	schemaNode := app.NewSchemaPage(n.schema, int(n.db.header.PageSize), n.db.pager, &n.db.header)
+	return schemaNode.EncodeDataAsPage()
 }

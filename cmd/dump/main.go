@@ -94,7 +94,7 @@ func parseHeader(buf []byte) (disk.Header, error) {
 	return header, nil
 }
 
-func parseTable(file *os.File, pageSize int) (*app.TableMeta, error) {
+func parseTable(file *os.File, pageSize int) (*app.TableSchema, error) {
 	file.Seek(0, io.SeekStart)
 	buf, err := common.ReadExactly(file, pageSize)
 	if err != nil {
@@ -111,7 +111,7 @@ func parseTable(file *os.File, pageSize int) (*app.TableMeta, error) {
 	return &tables[0], nil
 }
 
-func parseTableData(file *os.File, tbl *app.TableMeta, pageID int, pageSize int) ([]*app.TableKeyValue, error) {
+func parseTableData(file *os.File, tbl *app.TableSchema, pageID int, pageSize int) ([]*app.TableKeyValue, error) {
 	startOffset := (pageID - 1) * pageSize
 
 	buf := make([]byte, pageSize)
